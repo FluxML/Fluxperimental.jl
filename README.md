@@ -34,4 +34,4 @@ As will any features which migrate to Flux itself.
 ## Current Features
 
 * Layers `Split` and `Join`
-
+* A more advanced `train!`
