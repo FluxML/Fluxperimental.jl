@@ -37,3 +37,5 @@ As will any features which migrate to Flux itself.
 * More advanced [`train!` function](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/train.jl)
 * Macro for [making custom layers](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/compact.jl) quickly
 * Experimental [`apply(c::Chain, x)`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/chain.jl) interface
+* [Pre-allocated](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/preallocated.jl) 
+working space for some layers
