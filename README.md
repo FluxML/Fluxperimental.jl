@@ -35,3 +35,4 @@ As will any features which migrate to Flux itself.
 
 * Layers `Split` and `Join`
 * A more advanced `train!`
+* Layers with pre-allocated working space

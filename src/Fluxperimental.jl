@@ -8,4 +8,7 @@ export Split, Join
 include("train.jl")
 export shinkansen!
 
+include("preallocated.jl")
+export pre, nopre
+
 end # module Fluxperimental
