@@ -1,6 +1,6 @@
 using Flux, ChainRulesCore
 using LinearAlgebra: mul!
-# using FastBroadcast: @..
+using FastBroadcast: @..
 using Strided
 
 const NoT = NoTangent()
@@ -108,31 +108,61 @@ function ChainRulesCore.rrule(::typeof(scale!), y, (scale, ds), (x, dx), (bias, 
 end
 
 #####
-#####  softmax
+#####  Conv
 #####
 
-function PreLayer(::typeof(softmax))
-  fwd, rev = zeros(Float32, 0), zeros(Float32, 0)  # not ideal, demands `model |> pre |> gpu` 
-  PreLayer(softmax, nothing, fwd, rev)
+function PreLayer(c::Conv)
+  grad = _struct_sim(c)
+  fwd, rev = similar(c.weight, 0), similar(c.weight, 0)
+  PreLayer(c, grad, fwd, rev)
 end
 
-function (p::PreLayer{typeof(softmax)})(x::AbstractArray{<:Real})
-  y, dx = _pre_setup(p, x)  # generic version
-  _softmaxcall!(y, p, x, dx)
+function (p::PreLayer{<:Conv})(x::AbstractArray{<:Real})
+  y, dx = _pre_setup(p, x)
+  _convcall!(y, p, x, dx)
 end
 
-_softmaxcall!(y, p, x, dx) = softmax!(y, x)
+using Flux: conv_dims, conv_reshape_bias
+using Flux.NNlib: fast_act, conv!, output_size, channels_out
 
-function ChainRulesCore.rrule(::typeof(_softmaxcall!), y, p, x, dx)
-  y = _softmaxcall!(y, p, x, dx)
-  function back(dy)
-    # TODO: CHECK THIS!
-    dx .= dy .* y
-    dx .= dx .- y .* sum(dx; dims=1)  # could sum! into the end of rev
-    return (NoT, NoT, NoT, dx, NoT)  # last one could be NotImplemented?
+function _pre_setup(p::PreLayer{<:Conv}, x)
+  cdims = conv_dims(p.layer, x)
+  ysize = (output_size(cdims)..., channels_out(cdims), size(x)[end])
+  if prod(ysize) != length(p.fwd)
+    resize!(p.fwd, prod(ysize))
+    resize!(p.rev, length(x))
   end
-  y, back
+  y = _pre_reshape(p.fwd, ysize)
+  dx = _pre_reshape(p.rev, size(x))
+  (; y, dx)
 end
+
+function _convcall!(y, p, x, dx)
+  cdims = conv_dims(p.layer, x)
+  conv!(y, x, p.layer.weight, cdims)
+  if p.layer.bias isa AbstractArray
+    y .+= conv_reshape_bias(p.layer)
+  end
+  act!(y, fast_act(p.layer.σ, x))
+end
+
+# function ChainRulesCore.rrule(::typeof(_convcall!), y, p, x, dx)
+#   y = _densecall!(y, p, x, dx)
+#   function back(dy)
+#     dy = unthunk(dy)
+#     dy = ∇act!(y, dy, p.layer.σ)
+#     # layer
+#     weight = mul!(p.grad.weight, dy, x') 
+#     bias = ∇bias!(p.grad.bias, dy)
+#     tang = Tangent{Dense}(; weight, bias)
+#     # input
+#     dx = mul!(dx, p.layer.weight', dy)
+#     return (NoT, NoT, Tangent{PreLayer}(; layer = tang), dx, NoT)
+#   end
+#   y, back
+# end
+
+
 
 #####
 #####  BatchNorm
@@ -201,6 +231,33 @@ function ChainRulesCore.rrule(::typeof(_norm_layer_forward!), y, x, dx, μ, σ²
   y, back
 end
 
+#####
+#####  softmax
+#####
+
+function PreLayer(::typeof(softmax))
+  fwd, rev = zeros(Float32, 0), zeros(Float32, 0)  # not ideal, demands `model |> pre |> gpu` 
+  PreLayer(softmax, nothing, fwd, rev)
+end
+
+function (p::PreLayer{typeof(softmax)})(x::AbstractArray{<:Real})
+  y, dx = _pre_setup(p, x)  # generic version
+  _softmaxcall!(y, p, x, dx)
+end
+
+_softmaxcall!(y, p, x, dx) = softmax!(y, x)
+
+function ChainRulesCore.rrule(::typeof(_softmaxcall!), y, p, x, dx)
+  y = _softmaxcall!(y, p, x, dx)
+  function back(dy)
+    # TODO: CHECK THIS!
+    dx .= dy .* y
+    dx .= dx .- y .* sum(dx; dims=1)  # could sum! into the end of rev
+    return (NoT, NoT, NoT, dx, NoT)  # last one could be NotImplemented?
+  end
+  y, back
+end
+
 
 #####
 #####  activation functions
@@ -212,8 +269,8 @@ function act!(y, act::F) where F
   # y .= σ.(y)
   # Unfortunately this hits  https://github.com/JuliaLang/julia/issues/43153
   # maybe you could patch Strided.jl to avoid it? Or use another package...
-  @strided y .= σ.(y)
-  # FastBroadcast.@.. y = σ(y)
+  # @strided y .= σ.(y)
+  @.. y = σ(y)
 end
 
 # Piracy, disable @strided on CuArrays:
@@ -223,10 +280,31 @@ Strided.maybestrided(x::Flux.CuArray) = x
 ChainRulesCore.rrule(::typeof(act!), y, f) = act!(y, f), dz -> (NoT, ∇act!(y, dy, f), NoT)
 
 ∇act!(y, dy, ::typeof(identity)) = dy
-∇act!(y, dy, ::typeof(relu)) = @. y = ifelse(y>0, dy, 0f0)
-∇act!(y, dy, ::typeof(tanh)) = @. y = (1 - y^2)
-∇act!(y, dy, ::typeof(sigmoid)) = @. y = y * (1 - y)
+∇act!(y, dy, ::typeof(relu)) = @.. y = ifelse(y>0, dy, 0f0)
+∇act!(y, dy, ::typeof(tanh)) = @.. y = (1 - y^2)
+∇act!(y, dy, ::typeof(sigmoid)) = @.. y = y * (1 - y)
 
+
+function PreLayer(::typeof(relu))
+  fwd, rev = zeros(Float32, 0), zeros(Float32, 0)  # not ideal
+  PreLayer(relu, nothing, fwd, rev)
+end
+
+function (p::PreLayer{typeof(relu)})(x::AbstractArray{<:Real})
+  y, dx = _pre_setup(p, x)  # generic version
+  _relucall!(y, p, x, dx)
+end
+
+_relucall!(y, p, x, dx) = y .= relu.(x)
+
+function ChainRulesCore.rrule(::typeof(_relucall!), y, p, x, dx)
+  y = _relucall!(y, p, x, dx)
+  function back(dy)
+    @. dx = ifelse(y>0, dy, 0f0)
+    return (NoT, NoT, NoT, dx, NoT)
+  end
+  y, back
+end
 
 #####
 #####  PreLayer utils
@@ -249,9 +327,13 @@ ChainRulesCore.@non_differentiable _pre_setup(::Any, ::Any)
 
 # Cannot use reshape(::Array), as that prevents later resize!
 _pre_reshape(x::Array, size::Tuple) = Base.ReshapedArray(x, size, ())
+# _pre_reshape(x::Array, size::Tuple) = Base.__reshape((x, Base.IndexStyle(x)), size)  # what Base does, no better
 # Must use reshape(::CuArray) as mul! rejects ReshapedArray
 _pre_reshape(x::Flux.CuArray, size::Tuple) = reshape(x, size)
 _pre_reshape(x, size::Tuple) = reshape(x, size)
+
+# Base piracy! to prevent ReshapedArray from going missing
+Base._reshape(R::Base.ReshapedArray, dims::Base.Dims) = Base.ReshapedArray(R.parent, dims, ())
 
 ∇bias!(::Bool, dx) = NoT
 ∇bias!(bias, dx) = sum!(bias, dx)
