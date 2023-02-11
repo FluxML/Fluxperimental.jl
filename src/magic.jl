@@ -1,9 +1,9 @@
 """
-    @Magic(forward::Function; construct...)
+    @Magic(forward::Function; name=nothing, construct...)
 
 Creates a layer by specifying some code to construct the layer, run immediately,
 and (usually as a `do` block) a function for the forward pass.
-You may think of `construct` as keywords, or better as a `let` block creating local variables.
+You may think of `construct` as a `let` block creating local variables.
 Their names may be used within the body of the `forward` function.
 
 Here is a linear model:
@@ -61,6 +61,20 @@ for epoch in 1:1000
   Flux.train!((m,x,y) -> (m(x) - y)^2, model, data, optim)
 end
 ```
+
+You may also specify a `name` for the model, which will
+be used instead of the default printout, which gives a verbatim
+representation of the code used to construct the model:
+
+```
+model = @Magic(w=rand(3), name="Linear") do x
+  sum(w .* x)
+end
+println(model)  # "Linear()"
+```
+
+This can be useful when using `@Magic` to hierarchically construct
+complex models to be used inside a `Chain`.
 """
 macro Magic(fex, kwexs...)
   # check input
