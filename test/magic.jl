@@ -1,4 +1,4 @@
-@testset "Split + Join" begin
+@testset "@Magic" begin
 
   r = @Magic(w = [1, 5, 10]) do x
     sum(w .* x)
@@ -32,7 +32,7 @@
   grads = ∇.grads
   @test typeof(grads) <: IdDict
   @test length(grads) == 3
-  @test size.(values(grads)) == [(7, 5), (), (7,)]
+  @test Set(size.(values(grads))) == Set([(7, 5), (), (7,)])
 
 
   # MLP:
@@ -67,5 +67,12 @@
     (1,),
   ]
   @test size(model(randn(n_in, 32))) == (1, 32)
+
+  # Test naming keyword:
+  model = @Magic(w=randn(32, 32), name="Linear") do x, y
+    tmp = sum(w .* x)
+    return tmp + y
+  end
+  @test string(model) == "Linear()"
 
 end

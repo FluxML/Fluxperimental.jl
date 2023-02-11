@@ -84,7 +84,8 @@ macro Magic(fex, kwexs...)
 
   # check if user has named layer:
   name = findfirst(ex -> ex.args[1] == :name, kwexs)
-  if name !== nothing || kwexs[name].args[2] === nothing
+  name_str = ""
+  if name !== nothing && kwexs[name].args[2] !== nothing
     length(kwexs) == 1 && error("expects keyword arguments")
     name_str = string(kwexs[name].args[2])
     # remove name from kwexs (a tuple)
