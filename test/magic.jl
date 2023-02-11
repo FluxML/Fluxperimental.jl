@@ -68,7 +68,15 @@
   ]
   @test size(model(randn(n_in, 32))) == (1, 32)
 
-  # Test naming keyword:
+  # Test string representations:
+  model = @Magic(w=randn(32, 32)) do x, y
+    tmp = sum(w .* x)
+    return tmp + y
+  end
+  @test string(model) == """@Magic(w = randn(32, 32)) do x, y
+    tmp = sum(w .* x)
+    return tmp + y
+end"""
   model = @Magic(w=randn(32, 32), name="Linear") do x, y
     tmp = sum(w .* x)
     return tmp + y
