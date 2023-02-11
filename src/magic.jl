@@ -68,11 +68,28 @@ macro Magic(fex, kwexs...)
   isempty(kwexs) && error("expects keyword arguments")
   all(ex -> Meta.isexpr(ex, :kw), kwexs) || error("expects only keyword argumens")
 
+  # check if user has named layer:
+  name = findfirst(ex -> ex.args[1] == :name, kwexs)
+  if name !== nothing || kwexs[name].args[2] === nothing
+    length(kwexs) == 1 && error("expects keyword arguments")
+    name_str = string(kwexs[name].args[2])
+    # remove name from kwexs (a tuple)
+    kwexs = (kwexs[1:name-1]..., kwexs[name+1:end]...)
+  end
+
   # make strings
   layer = "@Magic"
   setup = join(map(ex -> string(ex.args[1], " = ", ex.args[2]), kwexs), ", ")
   input = join(fex.args[1].args, ", ")
   block = string(Base.remove_linenums!(fex).args[2])
+
+  if name !== nothing
+    # make strings
+    layer = name_str
+    setup = ""
+    input = ""
+    block = ""
+  end
 
   # edit expressions
   vars = map(ex -> ex.args[1], kwexs)
@@ -113,6 +130,9 @@ Flux.@functor MagicLayer
 
 function Base.show(io::IO, m::MagicLayer)
   layer, setup, input, block = m.strings
-  print(io, layer, "(", setup, ") do ", input)
-  return print(io, block[6:end])
+  print(io, layer)
+  print(io, "(", setup, ")")
+  input != "" && print(io, " do ", input)
+  block != "" && print(io, block[6:end])
+  return nothing
 end
