@@ -7,6 +7,7 @@ You may think of `construct` as keywords, or better as a `let` block creating lo
 Their names may be used within the body of the `forward` function.
 
 Here is a linear model:
+
 ```
 r = @Magic(w = rand(3)) do x
   w .* x
@@ -15,6 +16,7 @@ r([1, 1, 1])  # x is set to [1, 1, 1].
 ```
 
 Here is a linear model with bias and activation:
+
 ```
 d = @Magic(in=5, out=7, W=randn(out, in), b=zeros(out), act=relu) do x
   y = W * x
@@ -24,6 +26,7 @@ d(ones(5, 10))  # 7×10 Matrix as output.
 ```
 
 Finally, here is a simple MLP:
+
 ```
 using Flux
 
@@ -49,6 +52,7 @@ model(randn(n_in, 32))  # 1×32 Matrix as output.
 ```
 
 We can train this model just like any `Chain`:
+
 ```
 data = [([x], 2x-x^3) for x in -2:0.1f0:2]
 optim = Flux.setup(Adam(), model)
