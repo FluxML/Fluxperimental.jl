@@ -81,6 +81,6 @@ end"""
     tmp = sum(w .* x)
     return tmp + y
   end
-  @test string(model) == "Linear()"
+  @test string(model) == "Linear(w = randn(32, 32))"
 
 end

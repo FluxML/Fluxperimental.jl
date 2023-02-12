@@ -101,7 +101,6 @@ macro Magic(fex, kwexs...)
   if name !== nothing
     # make strings
     layer = name_str
-    setup = ""
     input = ""
     block = ""
   end
