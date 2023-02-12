@@ -73,14 +73,16 @@
     tmp = sum(w .* x)
     return tmp + y
   end
-  @test string(model) == """@Magic(w = randn(32, 32)) do x, y
+  @test string(model) == """@Magic(
+  w = randn(32, 32),
+) do x, y
     tmp = sum(w .* x)
     return tmp + y
 end"""
-  model = @Magic(w=randn(32, 32), name="Linear") do x, y
+  model = @Magic(w=randn(32, 32), name="Linear(...)") do x, y
     tmp = sum(w .* x)
     return tmp + y
   end
-  @test string(model) == "Linear(w = randn(32, 32))"
+  @test string(model) == "Linear(...)"
 
 end

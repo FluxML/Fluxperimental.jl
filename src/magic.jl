@@ -67,10 +67,10 @@ be used instead of the default printout, which gives a verbatim
 representation of the code used to construct the model:
 
 ```
-model = @Magic(w=rand(3), name="Linear") do x
+model = @Magic(w=rand(3), name="Linear(3 => 1)") do x
   sum(w .* x)
 end
-println(model)  # "Linear()"
+println(model)  # "Linear(3 => 1)"
 ```
 
 This can be useful when using `@Magic` to hierarchically construct
@@ -94,13 +94,14 @@ macro Magic(fex, kwexs...)
 
   # make strings
   layer = "@Magic"
-  setup = join(map(ex -> string(ex.args[1], " = ", ex.args[2]), kwexs), ", ")
+  setup = join(map(ex -> string("  ", ex.args[1], " = ", ex.args[2]), kwexs), ",\n")
   input = join(fex.args[1].args, ", ")
   block = string(Base.remove_linenums!(fex).args[2])
 
   if name !== nothing
     # make strings
     layer = name_str
+    setup = ""
     input = ""
     block = ""
   end
@@ -145,7 +146,7 @@ Flux.@functor MagicLayer
 function Base.show(io::IO, m::MagicLayer)
   layer, setup, input, block = m.strings
   print(io, layer)
-  print(io, "(", setup, ")")
+  setup != "" && print(io, "(\n", setup, ",\n)")
   input != "" && print(io, " do ", input)
   block != "" && print(io, block[6:end])
   return nothing
