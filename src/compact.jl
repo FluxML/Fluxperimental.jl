@@ -1,3 +1,5 @@
+import Flux: _big_show, _layer_show, _show_leaflike, _big_finale
+
 """
     @compact(forward::Function; name=nothing, parameters...)
 
@@ -95,14 +97,12 @@ macro compact(fex, kwexs...)
 
   # make strings
   layer = "@compact"
-  setup = join(map(ex -> string("  ", ex.args[1], " = ", ex.args[2]), kwexs), ",\n")
   input = join(fex.args[1].args, ", ")
   block = string(Base.remove_linenums!(fex).args[2])
 
   if name !== nothing
     # make strings
     layer = name_str
-    setup = ""
     input = ""
     block = ""
   end
@@ -118,7 +118,7 @@ macro compact(fex, kwexs...)
   return esc(quote
     let
       $(assigns...)
-      $CompactLayer($fex, ($layer, $setup, $input, $block); $(vars...))
+      $CompactLayer($fex, ($layer, $input, $block); $(vars...))
     end
   end)
 end
@@ -136,7 +136,7 @@ addprefix!(not_ex, self, vars) = nothing
 
 struct CompactLayer{F,NT<:NamedTuple}
   fun::F
-  strings::NTuple{4,String}
+  strings::NTuple{3,String}
   variables::NT
 end
 CompactLayer(f::Function, str::Tuple; kw...) = CompactLayer(f, str, NamedTuple(kw))
@@ -144,11 +144,38 @@ CompactLayer(f::Function, str::Tuple; kw...) = CompactLayer(f, str, NamedTuple(k
 CompactLayer(args...) = error("CompactLayer is meant to be constructed by the macro")
 Flux.@functor CompactLayer
 
-function Base.show(io::IO, m::CompactLayer)
-  layer, setup, input, block = m.strings
-  print(io, layer)
-  setup != "" && print(io, "(\n", setup, ",\n)")
+Flux._show_children(m::CompactLayer) = m.variables
+
+function Base.show(io::IO, ::MIME"text/plain", m::CompactLayer)
+  if get(io, :typeinfo, nothing) === nothing  # e.g., top level of REPL
+    Flux._big_show(io, m)
+  elseif !get(io, :compact, false)  # e.g., printed inside a Vector, but not a matrix
+    Flux._layer_show(io, m)
+  else
+    show(io, m)
+  end
+end
+
+function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
+  layer, input, block = obj.strings
+  pre, post = ("(", ")")
+  println(io, " "^indent, isnothing(name) ? "" : "$name = ", layer, pre)
+  for k in keys(obj.variables)
+    v = obj.variables[k]
+    _big_show(io, v, indent+2, String(k))
+  end
+  if indent == 0  # i.e. this is the outermost container
+    print(io, rpad(post, 1))
+  else
+    print(io, " "^indent, post)
+  end
+
   input != "" && print(io, " do ", input)
   block != "" && print(io, block[6:end])
-  return nothing
+
+  if indent == 0
+    _big_finale(io, obj)
+  else
+    println(io, ",")
+  end
 end
