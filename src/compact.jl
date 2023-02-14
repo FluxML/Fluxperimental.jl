@@ -1,4 +1,4 @@
-import Flux: _big_show, _layer_show, _show_leaflike, _big_finale
+import Flux: _big_show
 
 """
     @compact(forward::Function; name=nothing, parameters...)
@@ -97,6 +97,7 @@ macro compact(fex, kwexs...)
 
   # make strings
   layer = "@compact"
+  setup = NamedTuple(map(ex -> Symbol(string(ex.args[1])) => string(ex.args[2]), kwexs))
   input = join(fex.args[1].args, ", ")
   block = string(Base.remove_linenums!(fex).args[2])
 
@@ -118,7 +119,7 @@ macro compact(fex, kwexs...)
   return esc(quote
     let
       $(assigns...)
-      $CompactLayer($fex, ($layer, $input, $block); $(vars...))
+      $CompactLayer($fex, ($layer, $input, $block), $setup; $(vars...))
     end
   end)
 end
@@ -134,12 +135,13 @@ function addprefix!(ex::Expr, self, vars)
 end
 addprefix!(not_ex, self, vars) = nothing
 
-struct CompactLayer{F,NT<:NamedTuple}
+struct CompactLayer{F,NT1<:NamedTuple,NT2<:NamedTuple}
   fun::F
   strings::NTuple{3,String}
-  variables::NT
+  setup_strings::NT1
+  variables::NT2
 end
-CompactLayer(f::Function, str::Tuple; kw...) = CompactLayer(f, str, NamedTuple(kw))
+CompactLayer(f::Function, str::Tuple, setup_str::NamedTuple; kw...) = CompactLayer(f, str, setup_str, NamedTuple(kw))
 (m::CompactLayer)(x...) = m.fun(m.variables, x...)
 CompactLayer(args...) = error("CompactLayer is meant to be constructed by the macro")
 Flux.@functor CompactLayer
@@ -157,12 +159,19 @@ function Base.show(io::IO, ::MIME"text/plain", m::CompactLayer)
 end
 
 function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
+  setup_strings = obj.setup_strings
   layer, input, block = obj.strings
   pre, post = ("(", ")")
   println(io, " "^indent, isnothing(name) ? "" : "$name = ", layer, pre)
   for k in keys(obj.variables)
     v = obj.variables[k]
-    _big_show(io, v, indent+2, String(k))
+    if Flux._show_leaflike(v)
+      # If the value is a leaf, just print verbatim what the user wrote:
+      str = String(k) * " = " * setup_strings[k]
+      _just_show_params(io, str, v, indent+2)
+    else
+      Flux._big_show(io, v, indent+2, String(k))
+    end
   end
   if indent == 0  # i.e. this is the outermost container
     print(io, rpad(post, 1))
@@ -179,8 +188,23 @@ function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
   end
 
   if indent == 0
-    _big_finale(io, obj)
+    Flux._big_finale(io, obj)
   else
     println(io, ",")
   end
+end
+
+# Modified from src/layers/show.jl
+function _just_show_params(io::IO, str::String, layer, indent::Int=0)
+  print(io, " "^indent, str, indent==0 ? "" : ",")
+  if !isempty(Flux.params(layer))
+    print(io, " "^max(2, (indent==0 ? 20 : 39) - indent - length(str)))
+    printstyled(io, "# ", Flux.underscorise(sum(length, Flux.params(layer))), " parameters"; color=:light_black)
+    nonparam = Flux._childarray_sum(length, layer) - sum(length, Flux.params(layer))
+    if nonparam > 0
+      printstyled(io, ", plus ", Flux.underscorise(nonparam), indent==0 ? " non-trainable" : ""; color=:light_black)
+    end
+    Flux._nan_show(io, Flux.params(layer))
+  end
+  indent==0 || println(io)
 end

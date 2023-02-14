@@ -127,7 +127,19 @@ end
     w2 = Dense(32 => 32, relu),           # 1_056 parameters
   ) do x
       w2(w1(x))
-  end                  # Total: 6 arrays, 3_168 parameters, 13.047 KiB."""
+  end                  # Total: 6 arrays, 3_168 parameters, 13.239 KiB."""
   @test similar_strings(get_model_string(model2), expected_string)
+
+  # With array params:
+  model = @compact(x=randn(32), w=Dense(32=>32)) do s
+    w(x .* s)
+  end
+  expected_string = """@compact(
+    x = randn(32),                        # 32 parameters
+    w = Dense(32 => 32),                  # 1_056 parameters
+  ) do s 
+    w(x .* s)
+  end                  # Total: 3 arrays, 1_088 parameters, 4.727 KiB."""
+  @test similar_strings(get_model_string(model), expected_string)
 
 end
