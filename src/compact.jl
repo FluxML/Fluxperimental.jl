@@ -171,7 +171,12 @@ function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
   end
 
   input != "" && print(io, " do ", input)
-  block != "" && print(io, block[6:end])
+  if block != ""
+    block_to_print = block[6:end]
+    # Increase indentation of block according to `indent`:
+    block_to_print = replace(block_to_print, r"\n" => "\n" * " "^(indent))
+    print(io, " ", block_to_print)
+  end
 
   if indent == 0
     _big_finale(io, obj)
