@@ -8,6 +8,6 @@ export Split, Join
 include("train.jl")
 export shinkansen!
 
-include("magic.jl")
+include("compact.jl")
 
 end # module Fluxperimental

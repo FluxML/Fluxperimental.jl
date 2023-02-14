@@ -3,5 +3,5 @@ using Flux, Fluxperimental
 
 @testset "Fluxperimental.jl" begin
   include("split_join.jl")
-  include("magic.jl")
+  include("compact.jl")
 end
