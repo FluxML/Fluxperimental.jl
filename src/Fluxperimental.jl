@@ -9,6 +9,5 @@ include("train.jl")
 export shinkansen!
 
 include("magic.jl")
-export @Magic
 
 end # module Fluxperimental

@@ -1,16 +1,16 @@
 """
-    @Magic(forward::Function; name=nothing, parameters...)
+    @compact(forward::Function; name=nothing, parameters...)
 
 Creates a layer by specifying some `parameters`, in the form of keywords,
 and (usually as a `do` block) a function for the forward pass.
-You may think of `@Magic` as a specialized `let` block creating local variables 
+You may think of `@compact` as a specialized `let` block creating local variables 
 that are trainable in Flux.
 Declared variable names may be used within the body of the `forward` function.
 
 Here is a linear model:
 
 ```
-r = @Magic(w = rand(3)) do x
+r = @compact(w = rand(3)) do x
   w .* x
 end
 r([1, 1, 1])  # x is set to [1, 1, 1].
@@ -19,7 +19,7 @@ r([1, 1, 1])  # x is set to [1, 1, 1].
 Here is a linear model with bias and activation:
 
 ```
-d = @Magic(in=5, out=7, W=randn(out, in), b=zeros(out), act=relu) do x
+d = @compact(in=5, out=7, W=randn(out, in), b=zeros(out), act=relu) do x
   y = W * x
   act.(y .+ b)
 end
@@ -35,7 +35,7 @@ n_in = 1
 n_out = 1
 nlayers = 3
 
-model = @Magic(
+model = @compact(
   w1=Dense(n_in, 128),
   w2=[Dense(128, 128) for i=1:nlayers],
   w3=Dense(128, n_out),
@@ -68,16 +68,16 @@ be used instead of the default printout, which gives a verbatim
 representation of the code used to construct the model:
 
 ```
-model = @Magic(w=rand(3), name="Linear(3 => 1)") do x
+model = @compact(w=rand(3), name="Linear(3 => 1)") do x
   sum(w .* x)
 end
 println(model)  # "Linear(3 => 1)"
 ```
 
-This can be useful when using `@Magic` to hierarchically construct
+This can be useful when using `@compact` to hierarchically construct
 complex models to be used inside a `Chain`.
 """
-macro Magic(fex, kwexs...)
+macro compact(fex, kwexs...)
   # check input
   Meta.isexpr(fex, :(->)) || error("expects a do block")
   isempty(kwexs) && error("expects keyword arguments")
@@ -94,7 +94,7 @@ macro Magic(fex, kwexs...)
   end
 
   # make strings
-  layer = "@Magic"
+  layer = "@compact"
   setup = join(map(ex -> string("  ", ex.args[1], " = ", ex.args[2]), kwexs), ",\n")
   input = join(fex.args[1].args, ", ")
   block = string(Base.remove_linenums!(fex).args[2])
@@ -118,7 +118,7 @@ macro Magic(fex, kwexs...)
   return esc(quote
     let
       $(assigns...)
-      $MagicLayer($fex, ($layer, $setup, $input, $block); $(vars...))
+      $CompactLayer($fex, ($layer, $setup, $input, $block); $(vars...))
     end
   end)
 end
@@ -134,17 +134,17 @@ function addprefix!(ex::Expr, self, vars)
 end
 addprefix!(not_ex, self, vars) = nothing
 
-struct MagicLayer{F,NT<:NamedTuple}
+struct CompactLayer{F,NT<:NamedTuple}
   fun::F
   strings::NTuple{4,String}
   variables::NT
 end
-MagicLayer(f::Function, str::Tuple; kw...) = MagicLayer(f, str, NamedTuple(kw))
-(m::MagicLayer)(x...) = m.fun(m.variables, x...)
-MagicLayer(args...) = error("MagicLayer is meant to be constructed by the macro")
-Flux.@functor MagicLayer
+CompactLayer(f::Function, str::Tuple; kw...) = CompactLayer(f, str, NamedTuple(kw))
+(m::CompactLayer)(x...) = m.fun(m.variables, x...)
+CompactLayer(args...) = error("CompactLayer is meant to be constructed by the macro")
+Flux.@functor CompactLayer
 
-function Base.show(io::IO, m::MagicLayer)
+function Base.show(io::IO, m::CompactLayer)
   layer, setup, input, block = m.strings
   print(io, layer)
   setup != "" && print(io, "(\n", setup, ",\n)")

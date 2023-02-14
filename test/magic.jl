@@ -1,6 +1,8 @@
-@testset "@Magic" begin
+import Fluxperimental: @compact
 
-  r = @Magic(w = [1, 5, 10]) do x
+@testset "@compact" begin
+
+  r = @compact(w = [1, 5, 10]) do x
     sum(w .* x)
   end
   @test Flux.params(r) == Flux.Params([[1, 5, 10]])
@@ -11,7 +13,7 @@
   # Test gradients:
   @test gradient(r, [1, 1, 1])[1] == [1, 5, 10]
 
-  d = @Magic(in = 5, out = 7, W = randn(out, in), b = zeros(out), act = relu) do x
+  d = @compact(in = 5, out = 7, W = randn(out, in), b = zeros(out), act = relu) do x
     y = W * x
     act.(y .+ b)
   end
@@ -40,7 +42,7 @@
   n_out = 1
   nlayers = 3
 
-  model = @Magic(
+  model = @compact(
     w1 = Dense(n_in, 128),
     w2 = [Dense(128, 128) for i = 1:nlayers],
     w3 = Dense(128, n_out),
@@ -69,17 +71,17 @@
   @test size(model(randn(n_in, 32))) == (1, 32)
 
   # Test string representations:
-  model = @Magic(w=randn(32, 32)) do x, y
+  model = @compact(w=randn(32, 32)) do x, y
     tmp = sum(w .* x)
     return tmp + y
   end
-  @test string(model) == """@Magic(
+  @test string(model) == """@compact(
   w = randn(32, 32),
 ) do x, y
     tmp = sum(w .* x)
     return tmp + y
 end"""
-  model = @Magic(w=randn(32, 32), name="Linear(...)") do x, y
+  model = @compact(w=randn(32, 32), name="Linear(...)") do x, y
     tmp = sum(w .* x)
     return tmp + y
   end
