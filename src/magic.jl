@@ -1,10 +1,11 @@
 """
-    @Magic(forward::Function; name=nothing, construct...)
+    @Magic(forward::Function; name=nothing, parameters...)
 
-Creates a layer by specifying some code to construct the layer, run immediately,
+Creates a layer by specifying some `parameters`, in the form of keywords,
 and (usually as a `do` block) a function for the forward pass.
-You may think of `construct` as a `let` block creating local variables.
-Their names may be used within the body of the `forward` function.
+You may think of `@Magic` as a specialized `let` block creating local variables 
+that are trainable in Flux.
+Declared variable names may be used within the body of the `forward` function.
 
 Here is a linear model:
 
