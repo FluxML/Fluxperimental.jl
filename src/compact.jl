@@ -87,12 +87,12 @@ macro compact(fex, kwexs...)
 
   # check if user has named layer:
   name = findfirst(ex -> ex.args[1] == :name, kwexs)
-  name_str = ""
   if name !== nothing && kwexs[name].args[2] !== nothing
     length(kwexs) == 1 && error("expects keyword arguments")
-    name_str = string(kwexs[name].args[2])
+    name_str = kwexs[name].args[2]
     # remove name from kwexs (a tuple)
     kwexs = (kwexs[1:name-1]..., kwexs[name+1:end]...)
+    name = name_str
   end
 
   # make strings
@@ -100,13 +100,6 @@ macro compact(fex, kwexs...)
   setup = NamedTuple(map(ex -> Symbol(string(ex.args[1])) => string(ex.args[2]), kwexs))
   input = join(fex.args[1].args, ", ")
   block = string(Base.remove_linenums!(fex).args[2])
-
-  if name !== nothing
-    # make strings
-    layer = name_str
-    input = ""
-    block = ""
-  end
 
   # edit expressions
   vars = map(ex -> ex.args[1], kwexs)
@@ -119,7 +112,7 @@ macro compact(fex, kwexs...)
   return esc(quote
     let
       $(assigns...)
-      $CompactLayer($fex, ($layer, $input, $block), $setup; $(vars...))
+      $CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(vars...))
     end
   end)
 end
@@ -137,11 +130,12 @@ addprefix!(not_ex, self, vars) = nothing
 
 struct CompactLayer{F,NT1<:NamedTuple,NT2<:NamedTuple}
   fun::F
+  name::Union{String,Nothing}
   strings::NTuple{3,String}
   setup_strings::NT1
   variables::NT2
 end
-CompactLayer(f::Function, str::Tuple, setup_str::NamedTuple; kw...) = CompactLayer(f, str, setup_str, NamedTuple(kw))
+CompactLayer(f::Function, name::Union{String,Nothing}, str::Tuple, setup_str::NamedTuple; kw...) = CompactLayer(f, name, str, setup_str, NamedTuple(kw))
 (m::CompactLayer)(x...) = m.fun(m.variables, x...)
 CompactLayer(args...) = error("CompactLayer is meant to be constructed by the macro")
 Flux.@functor CompactLayer
@@ -160,37 +154,47 @@ end
 
 function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
   setup_strings = obj.setup_strings
-  layer, input, block = obj.strings
-  pre, post = ("(", ")")
-  println(io, " "^indent, isnothing(name) ? "" : "$name = ", layer, pre)
-  for k in keys(obj.variables)
-    v = obj.variables[k]
-    if Flux._show_leaflike(v)
-      # If the value is a leaf, just print verbatim what the user wrote:
-      str = String(k) * " = " * setup_strings[k]
-      _just_show_params(io, str, v, indent+2)
-    else
-      Flux._big_show(io, v, indent+2, String(k))
+  local_name = obj.name
+  has_explicit_name = local_name !== nothing
+  if has_explicit_name
+    if indent != 0 || length(Flux.params(obj)) <= 2
+      _just_show_params(io, local_name, obj, indent)
+    else  # indent == 0
+      print(io, local_name)
+      Flux._big_finale(io, obj)
     end
-  end
-  if indent == 0  # i.e. this is the outermost container
-    print(io, rpad(post, 1))
-  else
-    print(io, " "^indent, post)
-  end
+  else  # no name, so print normally
+    layer, input, block = obj.strings
+    pre, post = ("(", ")")
+    println(io, " "^indent, isnothing(name) ? "" : "$name = ", layer, pre)
+    for k in keys(obj.variables)
+      v = obj.variables[k]
+      if Flux._show_leaflike(v)
+        # If the value is a leaf, just print verbatim what the user wrote:
+        str = String(k) * " = " * setup_strings[k]
+        _just_show_params(io, str, v, indent+2)
+      else
+        Flux._big_show(io, v, indent+2, String(k))
+      end
+    end
+    if indent == 0  # i.e. this is the outermost container
+      print(io, rpad(post, 1))
+    else
+      print(io, " "^indent, post)
+    end
 
-  input != "" && print(io, " do ", input)
-  if block != ""
-    block_to_print = block[6:end]
-    # Increase indentation of block according to `indent`:
-    block_to_print = replace(block_to_print, r"\n" => "\n" * " "^(indent))
-    print(io, " ", block_to_print)
-  end
-
-  if indent == 0
-    Flux._big_finale(io, obj)
-  else
-    println(io, ",")
+    input != "" && print(io, " do ", input)
+    if block != ""
+      block_to_print = block[6:end]
+      # Increase indentation of block according to `indent`:
+      block_to_print = replace(block_to_print, r"\n" => "\n" * " "^(indent))
+      print(io, " ", block_to_print)
+    end
+    if indent == 0
+      Flux._big_finale(io, obj)
+    else
+      println(io, ",")
+    end
   end
 end
 
