@@ -4,6 +4,13 @@ import Fluxperimental: @compact
 function similar_strings(s1, s2)
   s1 = replace(s1, r"\s" => "")
   s2 = replace(s2, r"\s" => "")
+
+  # We also remove any instances of, e.g.,
+  # 17.057 KiB (or any other number)
+  # because this depends on indentation in this file.
+  s1 = replace(s1, r"\d+\.\d+KiB" => "")
+  s2 = replace(s2, r"\d+\.\d+KiB" => "")
+
   # Display any differences:
   if s1 != s2
     println(stderr, "s1: ", s1)
