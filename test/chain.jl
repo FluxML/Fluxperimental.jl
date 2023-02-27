@@ -65,19 +65,17 @@ end
       _grads_equal(grads_tuple, grads_truth)
     end
       
-
-    
-    @test begin
-      v_c = Flux.Chain([l1, l2]) # vector Chain
-      grads_v_truth = Flux.gradient(Flux.params(v_c)) do
-        sum(v_c(x))
-      end
-      grads_vector = Flux.gradient(Flux.params(v_c)) do
-        sum(Fluxperimental.apply(v_c, x)[end])
-      end
+    # @test begin
+    #   v_c = Flux.Chain([l1, l2]) # vector Chain
+    #   grads_v_truth = Flux.gradient(Flux.params(v_c)) do
+    #     sum(v_c(x))
+    #   end
+    #   grads_vector = Flux.gradient(Flux.params(v_c)) do
+    #     sum(Fluxperimental.apply(v_c, x)[end])
+    #   end
       
-      _grads_equal(grads_vector, grads_v_truth)
-    end  skip=true
+    #   _grads_equal(grads_vector, grads_v_truth)
+    # end skip=true
     
 
     
