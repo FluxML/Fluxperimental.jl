@@ -1,6 +1,3 @@
-
-import Flux, Fluxperimental
-
 function _grads_equal(grads1, grads2)
 
   if length(keys(grads1)) != length(keys(grads2))

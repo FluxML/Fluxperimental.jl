@@ -5,12 +5,12 @@ import Flux: ChainRulesCore
 
 # Main difference between this and the _applychain function is we return a new chain
 # with the internal state modified as well as the output of applying x to the chain.
-apply(chain::Flux.Chain, x) = begin
+function apply(chain::Flux.Chain, x)
   layers, out = _apply(chain.layers, x)
   Flux.Chain(layers), out
 end
 
-_apply(layers::NamedTuple{NMS, TPS}, x) where {NMS, TPS} = begin
+function _apply(layers::NamedTuple{NMS, TPS}, x) where {NMS, TPS}
   layers, out = _apply(Tuple(layers), x)
   NamedTuple{NMS}(layers), out
 end
@@ -25,8 +25,7 @@ end
 
 function ChainRulesCore.rrule(::typeof(_scan), layers, x)
   function _scan_pullback(dy)
-    throw("_scan Pullback not implemented")
-    return (ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent())
+    error("_scan Pullback not implemented")
   end
   return _scan(layers, x), _scan_pullback
 end
