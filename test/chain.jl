@@ -71,5 +71,18 @@ end
       
       _grads_equal(grads_tuple, grads_truth)
     end
+
+    @test begin # Test Vector Gradient
+      c = Flux.Chain([l1, l2]) # named tuple Chain
+      grads_truth = Flux.gradient(Flux.params(c)) do
+        sum(c(x))
+      end
+
+      grads_tuple = Flux.gradient(Flux.params(c)) do
+        sum(Fluxperimental.apply(c, x)[end])
+      end
+      
+      _grads_equal(grads_tuple, grads_truth)
+    end
   end # @testset "Backward Pass"
 end # @testset "Applying the Chain!"

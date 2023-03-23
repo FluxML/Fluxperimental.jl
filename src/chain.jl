@@ -18,16 +18,30 @@ end
 function _scan(layers::AbstractVector, x)
   new_layers = typeof(layers)(undef, length(layers))
   for (idx, f) in enumerate(layers)
-    new_layers[idx], x = _apply_to_layer(f, x)
+    new_layers[idx], x = _apply(f, x)
   end
   new_layers, x
 end
 
-function ChainRulesCore.rrule(::typeof(_scan), layers, x)
-  function _scan_pullback(dy)
-    error("_scan Pullback not implemented")
+# Reverse rule for _scan
+# example pulled from https://github.com/mcabbott/Flux.jl/blob/chain_rrule/src/cuda/cuda.jl
+function ChainRulesCore.rrule(cfg::ChainRulesCore.RuleConfig, ::typeof(_scan), layers, x)
+  duo = accumulate(layers; init=((nothing, x), nothing)) do ((pl,  input), _), cur_layer
+    out, back = ChainRulesCore.rrule_via_ad(cfg, _apply, cur_layer, input)
   end
-  return _scan(layers, x), _scan_pullback
+  outs = map(first, duo)
+  backs = map(last, duo)
+  
+  function _scan_pullback(dy)
+    multi = accumulate(reverse(backs); init=(nothing, dy)) do (_, delta), back
+      dapply, dlayer, din = back(delta)
+      return dapply, (dlayer, din)
+    end
+    layergrads = reverse(map(first, multi))
+    xgrad = last(multi[end])
+    return (ChainRulesCore.NoTangent(), layergrads, xgrad)
+  end
+  return (map(first, outs), last(outs[end])), _scan_pullback
 end
 
 function _apply(layers::AbstractVector, x)  # type-unstable path, helps compile times
@@ -38,11 +52,11 @@ end
 @generated function _apply(layers::Tuple{Vararg{<:Any,N}}, x) where {N}
   x_symbols = vcat(:x, [gensym() for _ in 1:N])
   l_symbols = [gensym() for _ in 1:N]
-  calls = [:(($(l_symbols[i]), $(x_symbols[i+1])) = _apply_to_layer(layers[$i], $(x_symbols[i]))) for i in 1:N]
+  calls = [:(($(l_symbols[i]), $(x_symbols[i+1])) = _apply(layers[$i], $(x_symbols[i]))) for i in 1:N]
   push!(calls, :(return tuple($(l_symbols...)), $(x_symbols[end])))
   Expr(:block, calls...)
 end
 
-_apply_to_layer(layer, x) = layer, layer(x)
+_apply(layer, x) = layer, layer(x)
 
 
