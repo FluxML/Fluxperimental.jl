@@ -3,6 +3,7 @@ import Flux: ChainRulesCore
 # Some experiments with chain to start removing the need for recur to be mutable.
 # As per the conversation in the recurrent network rework issue.
 
+
 # Main difference between this and the _applychain function is we return a new chain
 # with the internal state modified as well as the output of applying x to the chain.
 function apply(chain::Flux.Chain, x)
@@ -60,3 +61,26 @@ end
 _apply(layer, x) = layer, layer(x)
 
 
+
+"""
+  NM_Recur
+
+Non-mutating Recur. An experimental recur interface for the new chain api.
+"""
+struct NM_Recur{T,S}
+  cell::T
+  state::S
+end
+
+function _apply(m::NM_Recur, x)
+  state, y = m.cell(m.state, x)
+  return NM_Recur(m.cell, state), y
+end
+
+Flux.@functor NM_Recur
+Flux.trainable(a::NM_Recur) = (; cell = a.cell)
+
+Base.show(io::IO, m::NM_Recur) = print(io, "Recur(", m.cell, ")")
+
+NM_RNN(a...; ka...) = NM_Recur(Flux.RNNCell(a...; ka...))
+NM_Recur(m::Flux.RNNCell) = NM_Recur(m, m.state0)
