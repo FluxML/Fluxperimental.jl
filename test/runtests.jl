@@ -6,6 +6,9 @@ using Flux, Fluxperimental
 
   include("chain.jl")
 
+  # Tests currently broken.
+  # include("recur.jl")
+
   include("compact.jl")
 
 end

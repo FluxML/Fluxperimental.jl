@@ -11,6 +11,8 @@ export shinkansen!
 
 include("chain.jl")
 
+include("recur.jl")
+
 include("compact.jl")
 
 end # module Fluxperimental
