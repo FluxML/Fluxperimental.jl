@@ -16,20 +16,24 @@ struct NM_Recur{RET_SEQUENCE, T, S}
   end
 end
 
-function _apply(m::NM_Recur, x)
+function apply(m::NM_Recur, x)
   state, y = m.cell(m.state, x)
   return NM_Recur(m.cell, state), y
 end
 
 # This is the same way we do 3-tensers from Flux.Recur
-function _apply(m::NM_Recur, x::AbstractArray{T, 3}) where T
+function apply(m::NM_Recur{true}, x::AbstractArray{T, 3}) where T
   # h = [m(x_t) for x_t in eachlastdim(x)]
-  l, h = _apply_to_layer(m, Flux.eachlastdim(x))
+  l, h = apply(m, Flux.eachlastdim(x))
   sze = size(h[1])
   l, reshape(reduce(hcat, h), sze[1], sze[2], length(h))
 end
 
-function _apply(l::NM_Recur{false}, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
+function apply(m::NM_Recur{false}, x::AbstractArray{T, 3}) where T
+  apply(m, Flux.eachlastdim(x))
+end
+
+function apply(l::NM_Recur{false}, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
   rnn = l.cell
   # carry = layer.stamte
   x_init, x_rest = Iterators.peel(xs)
@@ -41,9 +45,14 @@ function _apply(l::NM_Recur{false}, xs::Union{AbstractVector{<:AbstractArray}, B
 end
 
 # From Lux.jl: https://github.com/LuxDL/Lux.jl/pull/287/
-function _apply(l::NM_Recur{true}, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
+function apply(l::NM_Recur{true}, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
   rnn = l.cell
-  x_init, x_rest = Iterators.peel(xs)
+  _xs = if xs isa Base.Generator
+    collect(xs)  # TODO: Fix. I can't figure out how to get around this for generators.
+  else
+    xs
+  end
+  x_init, _ = Iterators.peel(_xs)
 
   (carry, out_) = rnn(l.state, x_init)
 
@@ -53,9 +62,8 @@ function _apply(l::NM_Recur{true}, xs::Union{AbstractVector{<:AbstractArray}, Ba
     carry, out = rnn(carry, input)
     return vcat(outputs, typeof(out)[out]), carry
   end
-
-  results = foldr(recurrence_op, xs[(begin+1):end]; init)
-  return NM_Recur{true}(rnn, results[2][end]), first(results)
+  results = foldr(recurrence_op, _xs[(begin+1):end]; init)
+  return NM_Recur{true}(rnn, results[1][end]), first(results)
 end
 
 Flux.@functor NM_Recur
@@ -66,10 +74,24 @@ Base.show(io::IO, m::NM_Recur) = print(io, "Recur(", m.cell, ")")
 NM_RNN(a...; return_sequence::Bool=false, ka...) = NM_Recur(Flux.RNNCell(a...; ka...); return_sequence=return_sequence)
 NM_Recur(m::Flux.RNNCell; return_sequence::Bool=false) = NM_Recur(m, m.state0; return_sequence=return_sequence)
 
+# Quick Reset functionality
+
+struct RecurWalk <: Flux.Functors.AbstractWalk end
+(::RecurWalk)(recurse, x) = x isa Fluxperimental.NM_Recur ? reset(x) : Flux.Functors.DefaultWalk()(recurse, x)
+
+function reset(m::NM_Recur{SEQ}) where SEQ
+  NM_Recur{SEQ}(m.cell, m.cell.state0)
+end
+reset(m) = m
+function reset(m::Flux.Chain)
+  ret = Flux.Functors.fmap((l)->l, m; walk=RecurWalk())
+end
+
+
 ##
 # Fallback apply timeseries data to other layers. Likely needs to be thoought through a bit more.
 ##
 
-function _apply(l, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
+function apply(l, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
   l, [l(x) for x in xs]
 end

@@ -20,7 +20,7 @@
   nm_layer = Fluxperimental.NM_Recur(cell; return_sequence = true)
   ps = Flux.params(nm_layer)
   e, g = Flux.withgradient(ps) do
-    l, out = Fluxperimental._apply(nm_layer, x)
+    l, out = Fluxperimental.apply(nm_layer, x)
     sum(out[2])
   end
   
@@ -52,7 +52,7 @@ end
   nm_layer = Fluxperimental.NM_Recur(cell; return_sequence = false)
   ps = Flux.params(nm_layer)
   e, g = Flux.withgradient(ps) do
-    l, out = Fluxperimental._apply(nm_layer, x)
+    l, out = Fluxperimental.apply(nm_layer, x)
     sum(out)
   end
   
@@ -87,7 +87,7 @@ end
 
   nm_layer = Fluxperimental.NM_Recur(cell; return_sequence = false)
   e, g = Flux.withgradient(nm_layer) do layer
-    l, out = Fluxperimental._apply(layer, x)
+    l, out = Fluxperimental.apply(layer, x)
     sum(out)
   end
   grads = g[1][:cell]
