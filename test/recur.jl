@@ -99,7 +99,7 @@ end
     @test ∇Wi ≈ grads[:Wi]
     @test ∇Wh ≈ grads[:Wh]
     @test ∇b ≈ grads[:b]
-    @test_broken ∇state0 ≈ grads[:state0]
+    @test ∇state0 ≈ grads[:state0]
   else
     @test ∇Wi ≈ grads[:Wi]
     @test ∇Wh ≈ grads[:Wh]
