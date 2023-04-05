@@ -87,7 +87,8 @@ end
 
   nm_layer = Fluxperimental.NM_Recur(cell; return_sequence = false)
   e, g = Flux.withgradient(nm_layer) do layer
-    l, out = Fluxperimental.apply(layer, x)
+    r_l = Fluxperimental.reset(layer)
+    l, out = Fluxperimental.apply(r_l, x)
     sum(out)
   end
   grads = g[1][:cell]
@@ -103,6 +104,6 @@ end
     @test ∇Wi ≈ grads[:Wi]
     @test ∇Wh ≈ grads[:Wh]
     @test ∇b ≈ grads[:b]
-    @test_broken ∇state0 ≈ grads[:state0]
+    @test ∇state0 ≈ grads[:state0]
   end
 end
