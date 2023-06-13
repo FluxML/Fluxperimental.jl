@@ -83,7 +83,7 @@ macro compact(fex, kwexs...)
   # check input
   Meta.isexpr(fex, :(->)) || error("expects a do block")
   isempty(kwexs) && error("expects keyword arguments")
-  all(ex -> Meta.isexpr(ex, :kw), kwexs) || error("expects only keyword argumens")
+  all(ex -> Meta.isexpr(ex, (:kw,:(=))), kwexs) || error("expects only keyword argumens")
 
   # check if user has named layer:
   name = findfirst(ex -> ex.args[1] == :name, kwexs)
