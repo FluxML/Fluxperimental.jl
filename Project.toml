@@ -1,6 +1,6 @@
 name = "Fluxperimental"
 uuid = "3102ee7a-c841-4564-8f7f-ec69bd4fd658"
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
