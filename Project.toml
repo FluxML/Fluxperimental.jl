@@ -11,7 +11,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 Flux = "0.13.7"
-NNlib = "0.8.10"
+NNlib = "0.8.10, 0.9"
 Optimisers = "0.2.10"
 ProgressMeter = "1.7.2"
 Zygote = "0.6.49"
