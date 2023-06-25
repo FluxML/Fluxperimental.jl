@@ -8,4 +8,6 @@ using Flux, Fluxperimental
 
   include("compact.jl")
 
+  include("new_recur.jl")
+
 end
