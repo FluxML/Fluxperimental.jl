@@ -18,60 +18,59 @@ struct NewRecur{RET_SEQUENCE, T}
   end
 end
 
-# This is the same way we do 3-tensers from Flux.Recur
-function (m::NewRecur{false})(x::AbstractArray{T, N}, carry) where {T, N}
-  @assert N >= 3
-  # h = [m(x_t) for x_t in eachlastdim(x)]
+# assumes single timestep with batch=1.
+function (l::NewRecur)(x_vec::AbstractVector{T},
+                       init_carry=l.cell.state0) where T<:Number
+  x_block = reshape(x_vec, :, 1, 1)
+  l(x_block, init_carry)[:, 1, 1]
+end
 
+(l::NewRecur)(x_mat::AbstractMatrix, args...) = error("Matrix is ambiguous with NewRecur")
+
+function (l::NewRecur{false})(x_block::AbstractArray{T, 3},
+                              init_carry=l.cell.state0) where {T}
+  xs = Flux.eachlastdim(x_block)
   cell = l.cell
   x_init, x_rest = Iterators.peel(xs)
-  (carry, y) = cell(carry, x_init)
+  (carry, y) = cell(init_carry, x_init)
   for x in x_rest
     (carry, y) = cell(carry, x)
   end
   # carry, y
   y
-
-end
-
-function (l::NewRecur{false})(x::AbstractArray{T, 3}, carry=l.cell.state0) where T
-  m(Flux.eachlastdim(x), carry)
-end
-
-function (l::NewRecur{false})(xs::Union{AbstractVector{<:AbstractArray}, Base.Generator},
-                              carry=l.cell.state0)
-  rnn = l.cell
-  # carry = layer.stamte
-  x_init, x_rest = Iterators.peel(xs)
-  (carry, y) = rnn(carry, x_init)
-  for x in x_rest
-    (carry, y) = rnn(carry, x)
-  end
-  y
 end
 
 # From Lux.jl: https://github.com/LuxDL/Lux.jl/pull/287/
-function (l::NewRecur{true})(xs::Union{AbstractVector{<:AbstractArray}, Base.Generator},
-                             carry=l.cell.state0)
-  rnn = l.cell
-  _xs = if xs isa Base.Generator
-    collect(xs)  # TODO: Fix. I can't figure out how to get around this for generators.
+function (l::NewRecur{true})(x_block::AbstractArray{T, 3},
+                             init_carry=l.cell.state0) where {T}
+
+  # Time index is always the last index.
+  xs = Flux.eachlastdim(x_block)
+  xs_ = if xs isa Base.Generator
+    # This is because eachlastdim has different behavior in
+    # a gradient environment vs outside a gradient environment.
+    # Needs to be fixed....
+    collect(xs)
   else
     xs
   end
-  x_init, _ = Iterators.peel(_xs)
 
-  (carry, out_) = rnn(carry, x_init)
+  cell = l.cell
+  x_init, x_rest = Iterators.peel(xs_)
+
+  (carry, out_) = cell(init_carry, x_init)
 
   init = (typeof(out_)[out_], carry)
 
   function recurrence_op(input, (outputs, carry))
-    carry, out = rnn(carry, input)
+    carry, out = cell(carry, input)
     return vcat(outputs, typeof(out)[out]), carry
   end
-  results = foldr(recurrence_op, _xs[(begin+1):end]; init)
+  results = foldr(recurrence_op, xs_[(begin+1):end]; init)
   # return NewRecur{true}(rnn, results[1][end]), first(results)
-  first(results)
+  h = first(results)
+  sze = size(h[1])
+  reshape(reduce(hcat, h), sze[1], sze[2], length(h))
 end
 
 Flux.@functor NewRecur
