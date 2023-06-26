@@ -80,27 +80,4 @@ Flux.trainable(a::NewRecur) = (; cell = a.cell)
 Base.show(io::IO, m::NewRecur) = print(io, "Recur(", m.cell, ")")
 
 NewRNN(a...; return_sequence::Bool=false, ka...) = NewRecur(Flux.RNNCell(a...; ka...); return_sequence=return_sequence)
-# NewRecur(cell::Flux.RNNCell; return_sequence::Bool=false) = NewRecur(cell; return_sequence=return_sequence)
-
-# Quick Reset functionality
-
-# struct RecurWalk <: Flux.Functors.AbstractWalk end
-# (::RecurWalk)(recurse, x) = x isa Fluxperimental.NewRecur ? reset(x) : Flux.Functors.DefaultWalk()(recurse, x)
-
-# function reset(m::NewRecur{SEQ}) where SEQ
-#   NewRecur{SEQ}(m.cell, m.cell.state0)
-# end
-# reset(m) = m
-# function reset(m::Flux.Chain)
-#   ret = Flux.Functors.fmap((l)->l, m; walk=RecurWalk())
-# end
-
-
-##
-# Fallback apply timeseries data to other layers. Likely needs to be thoought through a bit more.
-##
-
-# function apply(l, xs::Union{AbstractVector{<:AbstractArray}, Base.Generator})
-#   l, [l(x) for x in xs]
-# end
 
