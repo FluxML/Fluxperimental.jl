@@ -13,9 +13,9 @@
     # @show layer(x)
     @test eltype(layer(x)) <: Float32
     @test size(layer(x)) == (1, 1, 2)
-    @test size(layer([2.0f0])) == (1, )
 
-    @test_throws ErrorException layer([2.0f0;; 3.0f0])
+    @test_throws MethodError layer([2.0f0])
+    @test_throws MethodError layer([2.0f0;; 3.0f0])
   end
 
 
@@ -103,9 +103,10 @@ end
 
     @test eltype(layer(x)) <: Float32
     @test size(layer(x)) == (1, 1)
-    @test size(layer([2.0f0])) == (1, )
-
-    @test_throws ErrorException layer([2.0f0;; 3.0f0])
+    
+    @test_throws MethodError layer([2.0f0])
+    @test_throws MethodError layer([2.0f0;; 3.0f0])
+    
   end
 
   @testset "gradients-implicit" begin
