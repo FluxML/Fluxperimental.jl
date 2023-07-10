@@ -2,7 +2,8 @@
 
 @testset "NewRecur RNN" begin
   @testset "Forward Pass" begin
-    cell = Flux.RNNCell(1, 1, identity)
+    # tanh is needed for forward check to determine ordering of inputs.
+    cell = Flux.RNNCell(1, 1, tanh)
     layer = Fluxperimental.NewRecur(cell; return_sequence=true)
     layer.cell.Wi .= 5.0
     layer.cell.Wh .= 4.0
@@ -10,14 +11,21 @@
     layer.cell.state0 .= 7.0
     x = reshape([2.0f0, 3.0f0], 1, 1, 2)
 
-    # @show layer(x)
+    # Lets make sure th output is correct
+    h = cell.state0
+    h, out = cell(h, [2.0f0])
+    h, out = cell(h, [3.0f0])
+    
     @test eltype(layer(x)) <: Float32
     @test size(layer(x)) == (1, 1, 2)
+    @test layer(x)[1, 1, 2] ≈ out[1,1]
+
+    @test length(layer(cell.state0, x)) == 2 # should return a tuple. Maybe better test is needed.
+    @test layer(cell.state0, x)[2][1,1,2] ≈ out[1,1]
 
     @test_throws MethodError layer([2.0f0])
     @test_throws MethodError layer([2.0f0;; 3.0f0])
   end
-
 
   @testset "gradients-implicit" begin
     cell = Flux.RNNCell(1, 1, identity)
@@ -51,7 +59,6 @@
     @test ∇b ≈ g[ps[3]]
     @test ∇state0 ≈ g[ps[4]]
   end
-
 
   @testset "gradients-explicit" begin
 
@@ -101,8 +108,16 @@ end
     layer.cell.state0 .= 7.0
     x = reshape([2.0f0, 3.0f0], 1, 1, 2)
 
+    h = cell.state0
+    h, out = cell(h, [2.0f0])
+    h, out = cell(h, [3.0f0])
+    
     @test eltype(layer(x)) <: Float32
     @test size(layer(x)) == (1, 1)
+    @test layer(x)[1, 1] ≈ out[1,1]
+    
+    @test length(layer(cell.state0, x)) == 2
+    @test layer(cell.state0, x)[2][1,1] ≈ out[1,1]
     
     @test_throws MethodError layer([2.0f0])
     @test_throws MethodError layer([2.0f0;; 3.0f0])

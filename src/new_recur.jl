@@ -3,28 +3,39 @@
 
 ##### Helper scan funtion which can likely be put into NNLib. #####
 """
-  scan
+  scan_full
 
-Recreating jax.lax.scan functionality in julia.
+Recreating jax.lax.scan functionality in julia. Takes a function, initial carry and a sequence,
+then returns the output sequence and the final carry. 
 """
 function scan_full(func, init_carry, xs::AbstractVector{<:AbstractArray})
-  # xs = Flux.eachlastdim(x_block)
+  # get the first input to setup the initial state,
+  # get the rest of the input to run the fold over.
   x_init, x_rest = Iterators.peel(xs)
+  # the following does the same as peel, but doesn't produce correct gradients?
+  ### x_init = first(xs)
+  ### x_rest = xs[begin+1:end]
 
-  (carry, out_) = func(init_carry, x_init)
+  # set up the initial state of the fold.
+  (carry_, out_) = func(init_carry, x_init)
+  init = (carry_, [out_])
 
-  init = (typeof(out_)[out_], carry)
-
-  function recurrence_op(input, (outputs, carry))
+  # recurrence operation used in the fold. Takes the state  of the
+  # folde and the next input, returns the new state.
+  function __recurrence_op((carry, outputs), input)
     carry, out = func(carry, input)
-    return vcat(outputs, typeof(out)[out]), carry
+    return carry, vcat(outputs, [out])
   end
-  results = foldr(recurrence_op, xs[(begin+1):end]; init)
-  results[2], results[1]
+  # Fold left to right.
+  foldl(__recurrence_op, x_rest; init)
 end
 
 function scan_full(func, init_carry, x_block)
+  # x_block is an abstractarray and we want to scan over the last dimension.
   xs_ = Flux.eachlastdim(x_block)
+
+  # this is needed due to a bug in eachlastdim which produces a vector in a
+  # gradient context, but a generator otherwise.
   xs = if xs_ isa Base.Generator
     collect(xs_) # eachlastdim produces a generator in non-gradient environment
   else
@@ -33,18 +44,28 @@ function scan_full(func, init_carry, x_block)
   scan_full(func, init_carry, xs)
 end
 
+
+"""
+  scan_partial
+
+Recreating jax.lax.scan functionality in julia. Takes a function, initial carry and a sequence,
+then returns the final output of the sequence and the final carry. 
+"""
 function scan_partial(func, init_carry, xs::AbstractVector{<:AbstractArray})
   x_init, x_rest = Iterators.peel(xs)
   (carry, y) = func(init_carry, x_init)
   for x in x_rest
     (carry, y) = func(carry, x)
   end
-  # carry, y
   carry, y
 end
 
 function scan_partial(func, init_carry, x_block)
+  # x_block is an abstractarray and we want to scan over the last dimension.
   xs_ = Flux.eachlastdim(x_block)
+  
+  # this is needed due to a bug in eachlastdim which produces a vector in a
+  # gradient context, but a generator otherwise.
   xs = if xs_ isa Base.Generator
     collect(xs_) # eachlastdim produces a generator in non-gradient environment
   else
@@ -77,28 +98,23 @@ Flux.trainable(a::NewRecur) = (; cell = a.cell)
 Base.show(io::IO, m::NewRecur) = print(io, "Recur(", m.cell, ")")
 NewRNN(a...; return_sequence::Bool=false, ka...) = NewRecur(Flux.RNNCell(a...; ka...); return_sequence=return_sequence)
 
-
 (l::NewRecur)(init_carry, x_mat::AbstractMatrix) = MethodError("Matrix is ambiguous with NewRecur")
 (l::NewRecur)(init_carry, x_mat::AbstractVector{T}) where {T<:Number} = MethodError("Vector is ambiguous with NewRecur")
 
-(l::NewRecur)(xs) = l(l.cell.state0, xs)
-
-
-function (l::NewRecur{false})(init_carry,
-                              xs)
-  results = scan_partial(l.cell, init_carry, xs)
-  results[2]
+function (l::NewRecur)(xs::AbstractArray)
+  results = l(l.cell.state0, xs)
+  results[2] # Only return the output here.
 end
 
-# From Lux.jl: https://github.com/LuxDL/Lux.jl/pull/287/
-function (l::NewRecur{true})(init_carry,
-                             xs,)
+function (l::NewRecur{false})(init_carry, xs)
+  results = scan_partial(l.cell, init_carry, xs)
+  results[1], results[2]
+end
+
+function (l::NewRecur{true})(init_carry, xs)
 
   results = scan_full(l.cell, init_carry, xs)
-  
-  h = results[2]
-  sze = size(h[1])
-  reshape(reduce(hcat, h), sze[1], sze[2], length(h))
+  results[1], stack(results[2], dims=3)
 end
 
 
