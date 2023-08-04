@@ -1,5 +1,6 @@
 
 import Flux: ChainRulesCore
+import Compat: stack
 # import ChainRulesCore: rrule, HasReverseMode
 
 ##### Helper scan funtion which can likely be put into NNLib. #####
