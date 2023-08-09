@@ -1,7 +1,5 @@
-
 import Flux: ChainRulesCore
 import Compat: stack
-# import ChainRulesCore: rrule, HasReverseMode
 
 ##### Helper scan funtion which can likely be put into NNLib. #####
 """
@@ -131,10 +129,6 @@ function (l::NewRecur{false})(init_carry, xs)
 end
 
 function (l::NewRecur{true})(init_carry, xs)
-
   results = scan_full(l.cell, init_carry, xs)
   results[1], stack(results[2], dims=3)
 end
-
-
-

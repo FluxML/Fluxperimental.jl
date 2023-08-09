@@ -1,5 +1,3 @@
-
-
 @testset "NewRecur RNN" begin
   @testset "Forward Pass" begin
     # tanh is needed for forward check to determine ordering of inputs.
@@ -93,12 +91,10 @@
     @test ∇Wh ≈ grads[:Wh]
     @test ∇b ≈ grads[:b]
     @test ∇state0 ≈ grads[:state0]
-    
   end
 end
 
 @testset "New Recur RNN Partial Sequence" begin
-
   @testset "Forward Pass" begin
     cell = Flux.RNNCell(1, 1, identity)
     layer = Fluxperimental.NewRecur(cell)
@@ -121,7 +117,6 @@ end
     
     @test_throws MethodError layer([2.0f0])
     @test_throws MethodError layer([2.0f0;; 3.0f0])
-    
   end
 
   @testset "gradients-implicit" begin
@@ -158,8 +153,6 @@ end
   end
 
   @testset "gradients-explicit" begin
-
-
     cell = Flux.RNNCell(1, 1, identity)
     layer = Flux.Recur(cell)
     layer.cell.Wi .= 5.0
@@ -177,7 +170,6 @@ end
     ∇b = layer.cell.Wh .+ 1
     ∇state0 = layer.cell.Wh .^ 2
 
-
     x_block = reshape(vcat(x...), 1, 1, length(x))
     nm_layer = Fluxperimental.NewRecur(cell; return_sequence = false)
     e, g = Flux.withgradient(nm_layer) do layer
@@ -194,4 +186,3 @@ end
 
   end
 end
-
