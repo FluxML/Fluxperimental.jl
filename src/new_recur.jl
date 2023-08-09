@@ -6,17 +6,18 @@ import Compat: stack
   scan_full
 
 Recreating jax.lax.scan functionality in julia. Takes a function, initial carry and a sequence,
-then returns the output sequence and the final carry. 
+then returns the full output of the sequence and the final carry. See `scan_partial` to only 
+return the final output of the sequence. 
 """
 function scan_full(func, init_carry, xs::AbstractVector{<:AbstractArray})
-   # Recurrence operation used in the fold. Takes the state of the
-   # fold and the next input, returns the new state.
-   function recurrence_op((carry, outputs), input)
-       carry, out = func(carry, input)
-       return carry, vcat(outputs, [out])
-   end
-   # Fold left to right.
-   return Base.mapfoldl_impl(identity, recurrence_op, (init_carry, empty(xs)), xs)
+  # Recurrence operation used in the fold. Takes the state of the
+  # fold and the next input, returns the new state.
+  function recurrence_op((carry, outputs), input)
+    carry, out = func(carry, input)
+    return carry, vcat(outputs, [out])
+  end
+  # Fold left to right.
+  return Base.mapfoldl_impl(identity, recurrence_op, (init_carry, empty(xs)), xs)
 end
 
 function scan_full(func, init_carry, x_block)
@@ -66,7 +67,8 @@ end
   scan_partial
 
 Recreating jax.lax.scan functionality in julia. Takes a function, initial carry and a sequence,
-then returns the final output of the sequence and the final carry. 
+then returns the final output of the sequence and the final carry. See `scan_full` to return 
+the entire output sequence.
 """
 function scan_partial(func, init_carry, xs::AbstractVector{<:AbstractArray})
   x_init, x_rest = Iterators.peel(xs)
@@ -95,6 +97,17 @@ end
 """
   NewRecur
 New Recur. An experimental recur interface for removing statefullness in recurrent architectures for flux.
+This struct has two type parameters. The first `RET_SEQUENCE` is a boolean which determines whether `scan_full` 
+(`RET_SEQUENCE=true`) or `scan_partial` (`RET_SEQUENCE=false`) is used to scan through the sequence. This
+structure has no internal state, and instead returns:
+
+```julia
+l = NewRNN(1,2)
+xs # Some input array Input x BatchSize x Time
+init_carry # the initial carry of the cell.
+l(xs) # -> returns the output of the RNN, uses cell.state0 as init_carry.
+l(init_carry, xs) # -> returns (final_carry, output), where the size ofoutput is determined by RET_SEQUENCE.
+```
 """
 struct NewRecur{RET_SEQUENCE, T}
   cell::T
