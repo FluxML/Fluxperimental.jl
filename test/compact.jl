@@ -1,4 +1,4 @@
-import Fluxperimental: @compact
+import Fluxperimental: @compact, CompactLayer
 
 # Strip both strings of spaces, and then test:
 function similar_strings(s1, s2)
@@ -181,4 +181,97 @@ end
   expected_string = """Model(32)                  # Total: 3 arrays, 2_080 parameters, 17.057KiB."""
   @test similar_strings(get_model_string(model), expected_string)
 
+end
+
+@testset "Dispatch using symbols" begin
+  model1 = @compact(W=randn(32)) do x
+    W .* x
+  end
+  model2 = @compact(MyCustomLayer, W=randn(32)) do x
+    W .* x
+  end
+  @eval my_custom_function(::CompactLayer{:Default}) = :Default
+  @eval my_custom_function(::CompactLayer{:MyCustomLayer}) = :MyCustomLayer
+
+  @test model1 isa CompactLayer{:Default}
+  @test model2 isa CompactLayer{:MyCustomLayer}
+  @test my_custom_function(model1) == :Default
+  @test my_custom_function(model2) == :MyCustomLayer
+
+  expected_string2 = """@compact(
+    MyCustomLayer,
+    W = randn(32),                        # 32 parameters
+  ) do x 
+      W .* x
+  end"""
+  @test similar_strings(get_model_string(model2), expected_string2)
+
+  @testset "Nested symbolic layers" begin
+    num_features = 1
+    num_out = 2
+    d_attn = 4
+    d_value = 12
+    num_heads = 3
+
+    model3 = @compact(
+        SelfAttention,
+        out = Dense(num_heads * d_value => num_out),
+        heads = [
+          @compact(
+            Head,
+            K = Dense(num_features => d_attn),
+            V = Dense(num_features => d_value),
+            Q = Dense(num_features => d_attn)
+          ) do x
+            k, v, q = K(x), V(x), Q(x)
+            x = sum(k .* q; dims=1) ./ sqrt(d_attn)
+            softmax(x; dims=2) .* v
+          end for _ in 1:num_heads
+        ]
+    ) do x
+        out(vcat([h(x) for h in heads]...))
+    end
+    @test model3 isa CompactLayer{:SelfAttention}
+    @test all(t -> isa(t, CompactLayer{:Head}), model3.variables.heads)
+
+    expected_string3 = """@compact(
+      SelfAttention,
+      out = Dense(36 => 2),                 # 74 parameters
+      heads = Array(
+        @compact(
+          Head,
+          K = Dense(1 => 4),                # 8 parameters
+          V = Dense(1 => 12),               # 24 parameters
+          Q = Dense(1 => 4),                # 8 parameters
+        ) do x 
+            (k, v, q) = (K(x), V(x), Q(x))
+            x = sum(k .* q; dims = 1) ./ sqrt(d_attn)
+            softmax(x; dims = 2) .* v
+        end,
+        @compact(
+          Head,
+          K = Dense(1 => 4),                # 8 parameters
+          V = Dense(1 => 12),               # 24 parameters
+          Q = Dense(1 => 4),                # 8 parameters
+        ) do x 
+            (k, v, q) = (K(x), V(x), Q(x))
+            x = sum(k .* q; dims = 1) ./ sqrt(d_attn)
+            softmax(x; dims = 2) .* v
+        end,
+        @compact(
+          Head,
+          K = Dense(1 => 4),                # 8 parameters
+          V = Dense(1 => 12),               # 24 parameters
+          Q = Dense(1 => 4),                # 8 parameters
+        ) do x 
+            (k, v, q) = (K(x), V(x), Q(x))
+            x = sum(k .* q; dims = 1) ./ sqrt(d_attn)
+            softmax(x; dims = 2) .* v
+        end,
+      ),
+    ) do x 
+        out(vcat([h(x) for h = heads]...))
+    end                  # Total: 20 arrays, 194 parameters, 3.515 KiB."""
+    @test similar_strings(get_model_string(model3), expected_string3)
+  end
 end
