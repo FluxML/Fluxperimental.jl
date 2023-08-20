@@ -79,14 +79,21 @@ println(model)  # "Linear(3 => 1)"
 This can be useful when using `@compact` to hierarchically construct
 complex models to be used inside a `Chain`.
 """
-macro compact(fex, kwexs...)
-  # check function input
+macro compact(fex, _kwexs...)
+  # check inputs
   Meta.isexpr(fex, :(->)) || error("expects a do block")
+  isempty(_kwexs) && error("expects keyword arguments")
+  all(ex -> Meta.isexpr(ex, (:kw,:(=),:parameters)), _kwexs) || error("expects only keyword arguments")
 
-  # check and preprocess keyword inputs
-  isempty(kwexs) && error("expects keyword arguments")
-  all(ex -> Meta.isexpr(ex, (:kw,:(=))), kwexs) || error("expects only keyword arguments")
-  kwexs = map(ex -> Expr(:kw, ex.args...), kwexs)
+  # process keyword arguments
+  if Meta.isexpr(_kwexs[1], :parameters) # handle keyword arguments provided after semicolon
+    kwexs1 = map(ex -> ex isa Symbol ? Expr(:kw, ex, ex) : ex, _kwexs[1].args) 
+    _kwexs = _kwexs[2:end]
+  else
+    kwexs1 = ()
+  end
+  kwexs2 = map(ex -> Expr(:kw, ex.args...), _kwexs) # handle keyword arguments provided before semicolon
+  kwexs = (kwexs1..., kwexs2...)
 
   # check if user has named layer:
   name = findfirst(ex -> ex.args[1] == :name, kwexs)

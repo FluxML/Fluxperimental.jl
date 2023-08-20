@@ -199,5 +199,15 @@ end
           y + z + x
     end
   end
+
+  @testset "Keyword argument syntax" begin
+    _a = 3
+    _b = 4
+    c = 5
+    model = @compact(a=_a; b=_b, c) do x
+        a + b * x + c * x^2
+    end
+    @test model(2) == _a + _b * 2 + c * 2^2
+  end
 end
 
