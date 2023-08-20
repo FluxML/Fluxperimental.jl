@@ -117,9 +117,7 @@ macro compact(fex, _kwexs...)
 
   # edit expressions
   vars = map(ex -> ex.args[1], kwexs)
-  @gensym self
-  pushfirst!(fex.args[1].args, self)
-  addprefix!(fex, self, vars)
+  fex = supportself(fex, vars)
 
   # assemble
   return esc(quote
@@ -129,16 +127,19 @@ macro compact(fex, _kwexs...)
   end)
 end
 
-function addprefix!(ex::Expr, self, vars)
-  for i = 1:length(ex.args)
-    if ex.args[i] in vars
-      ex.args[i] = :($self.$(ex.args[i]))
-    else
-      addprefix!(ex.args[i], self, vars)
+function supportself(fex::Expr, vars)
+  @gensym self
+  @gensym curried_fex
+  # To avoid having to manipulate fex's arguments and body explicitly, we form a curried function first
+  # that wraps the full fex expression, and then uncurry it programatically rather than syntactically.
+  let_exprs = map(var -> :($var = $self.$var), vars)
+  return quote
+    $curried_fex = ($self) -> let $(let_exprs...) 
+        $fex
     end
+    ($self, args...; kwargs...) -> begin $curried_fex($self)(args...; kwargs...) end
   end
 end
-addprefix!(not_ex, self, vars) = nothing
 
 struct CompactLayer{F,NT1<:NamedTuple,NT2<:NamedTuple}
   fun::F
