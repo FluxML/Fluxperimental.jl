@@ -21,13 +21,15 @@ r([1, 1, 1])  # x is set to [1, 1, 1].
 Here is a linear model with bias and activation:
 
 ```
-in = 5
-out = 7
-d = @compact(; in, out, W=randn(out, in), b=zeros(out), act=relu) do x
+d_in = 5
+d_out = 7
+d = @compact(W = randn(d_out, d_in), b = zeros(d_out), act = relu) do x
   y = W * x
   act.(y .+ b)
 end
-d(ones(5, 10))  # 7×10 Matrix as output.
+d(ones(5, 10)) # 7×10 Matrix as output.
+d([1,2,3,4,5]) ≈ Dense(d.variables.W, zeros(7), relu)([1,2,3,4,5]) # Equivalent to a dense layer
+``` 
 ```
 
 Finally, here is a simple MLP:

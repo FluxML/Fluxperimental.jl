@@ -41,9 +41,9 @@ end
   end
 
   @testset "Linear layer with activation" begin
-    in = 5
-    out = 7
-    d = @compact(; in, out, W = randn(out, in), b = zeros(out), act = relu) do x
+    d_in = 5
+    d_out = 7
+    d = @compact(W = randn(d_out, d_in), b = zeros(d_out), act = relu) do x
       y = W * x
       act.(y .+ b)
     end
@@ -65,6 +65,9 @@ end
     @test typeof(grads) <: IdDict
     @test length(grads) == 3
     @test Set(size.(values(grads))) == Set([(7, 5), (), (7,)])
+
+    # Test equivalence to Dense layer:
+    d([1,2,3,4,5]) ≈ Dense(d.variables.W, zeros(7), relu)([1,2,3,4,5]) 
   end
 
   @testset "MLP" begin
