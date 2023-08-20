@@ -43,7 +43,7 @@ end
   @testset "Linear layer with activation" begin
     in = 5
     out = 7
-    d = @compact(in = in, out = out, W = randn(out, in), b = zeros(out), act = relu) do x
+    d = @compact(; in, out, W = randn(out, in), b = zeros(out), act = relu) do x
       y = W * x
       act.(y .+ b)
     end

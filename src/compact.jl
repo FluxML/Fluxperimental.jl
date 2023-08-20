@@ -21,7 +21,9 @@ r([1, 1, 1])  # x is set to [1, 1, 1].
 Here is a linear model with bias and activation:
 
 ```
-d = @compact(in=5, out=7, W=randn(out, in), b=zeros(out), act=relu) do x
+in = 5
+out = 7
+d = @compact(; in, out, W=randn(out, in), b=zeros(out), act=relu) do x
   y = W * x
   act.(y .+ b)
 end
