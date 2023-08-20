@@ -83,9 +83,18 @@ println(model)  # "Linear(3 => 1)"
 This can be useful when using `@compact` to hierarchically construct
 complex models to be used inside a `Chain`.
 """
-macro compact(fex, _kwexs...)
-  # check inputs
-  Meta.isexpr(fex, :(->)) || error("expects a do block")
+macro compact(_exs...)
+  # check inputs, extracting function expression fex and unproccesesed keyword arguments _kwexs
+  isempty(_exs) && error("expects at least one expression")
+  if Meta.isexpr(_exs[1], :parameters)
+    length(_exs) >= 2 || error("expects an anonymous function")
+    fex = _exs[2]
+    _kwexs = (_exs[1], _exs[3:end]...)
+  else
+    fex = _exs[1]
+    _kwexs = _exs[2:end]
+  end
+  Meta.isexpr(fex, :(->)) || error("expects an anonymous function")
   isempty(_kwexs) && error("expects keyword arguments")
   all(ex -> Meta.isexpr(ex, (:kw,:(=),:parameters)), _kwexs) || error("expects only keyword arguments")
 
@@ -112,7 +121,10 @@ macro compact(fex, _kwexs...)
   # make strings
   layer = "@compact"
   setup = NamedTuple(map(ex -> Symbol(string(ex.args[1])) => string(ex.args[2]), kwexs))
-  input = join(fex.args[1].args, ", ")
+  input = try join(fex.args[1].args, ", ") catch e 
+    @warn "function stringifying does not yet handle all cases, using empty string"
+    ""
+  end
   block = string(Base.remove_linenums!(fex).args[2])
 
   # edit expressions
