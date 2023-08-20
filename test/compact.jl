@@ -41,7 +41,9 @@ end
   end
 
   @testset "Linear layer with activation" begin
-    d = @compact(in = 5, out = 7, W = randn(out, in), b = zeros(out), act = relu) do x
+    in = 5
+    out = 7
+    d = @compact(in = in, out = out, W = randn(out, in), b = zeros(out), act = relu) do x
       y = W * x
       act.(y .+ b)
     end
@@ -191,5 +193,11 @@ end
     @test similar_strings(get_model_string(model), expected_string)
   end
 
+  @testset "Dependent initializations" begin
+    # Test that initialization lines cannot depend on each other
+    @test_throws UndefVarError @compact(y = 3, z = y^2) do x
+          y + z + x
+    end
+  end
 end
 

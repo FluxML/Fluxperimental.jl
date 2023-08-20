@@ -80,10 +80,13 @@ This can be useful when using `@compact` to hierarchically construct
 complex models to be used inside a `Chain`.
 """
 macro compact(fex, kwexs...)
-  # check input
+  # check function input
   Meta.isexpr(fex, :(->)) || error("expects a do block")
+
+  # check and preprocess keyword inputs
   isempty(kwexs) && error("expects keyword arguments")
   all(ex -> Meta.isexpr(ex, (:kw,:(=))), kwexs) || error("expects only keyword arguments")
+  kwexs = map(ex -> Expr(:kw, ex.args...), kwexs)
 
   # check if user has named layer:
   name = findfirst(ex -> ex.args[1] == :name, kwexs)
@@ -103,7 +106,6 @@ macro compact(fex, kwexs...)
 
   # edit expressions
   vars = map(ex -> ex.args[1], kwexs)
-  assigns = map(ex -> Expr(:(=), ex.args...), kwexs)
   @gensym self
   pushfirst!(fex.args[1].args, self)
   addprefix!(fex, self, vars)
@@ -111,8 +113,7 @@ macro compact(fex, kwexs...)
   # assemble
   return esc(quote
     let
-      $(assigns...)
-      $CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(vars...))
+      $CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(kwexs...))
     end
   end)
 end
