@@ -141,15 +141,15 @@ end
 
 function supportself(fex::Expr, vars)
   @gensym self
-  @gensym curried_fex
+  @gensym curried_f
   # To avoid having to manipulate fex's arguments and body explicitly, we form a curried function first
   # that wraps the full fex expression, and then uncurry it programatically rather than syntactically.
   let_exprs = map(var -> :($var = $self.$var), vars)
   return quote
-    $curried_fex = ($self) -> let $(let_exprs...) 
+    $curried_f = ($self) -> let $(let_exprs...) 
         $fex
     end
-    ($self, args...; kwargs...) -> $curried_fex($self)(args...; kwargs...)
+    ($self, args...; kwargs...) -> $curried_f($self)(args...; kwargs...)
   end
 end
 
