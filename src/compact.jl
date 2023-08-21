@@ -84,7 +84,7 @@ This can be useful when using `@compact` to hierarchically construct
 complex models to be used inside a `Chain`.
 """
 macro compact(_exs...)
-  # check inputs, extracting function expression fex and unproccesesed keyword arguments _kwexs
+  # check inputs, extracting function expression fex and unprocessed keyword arguments _kwexs
   isempty(_exs) && error("expects at least one expression")
   if Meta.isexpr(_exs[1], :parameters)
     length(_exs) >= 2 || error("expects an anonymous function")
