@@ -136,11 +136,7 @@ macro compact(_exs...)
   fex = supportself(fex, vars)
 
   # assemble
-  return esc(quote
-    let
-      $CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(kwexs...))
-    end
-  end)
+  return esc(:($CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(kwexs...))))
 end
 
 function supportself(fex::Expr, vars)
