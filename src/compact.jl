@@ -85,7 +85,7 @@ complex models to be used inside a `Chain`.
 """
 macro compact(_exs...)
   # check inputs, extracting function expression fex and unprocessed keyword arguments _kwexs
-  isempty(_exs) && error("expects at least one expression")
+  isempty(_exs) && error("expects at least two expressions: a function and at least one keyword")
   if Meta.isexpr(_exs[1], :parameters)
     length(_exs) >= 2 || error("expects an anonymous function")
     fex = _exs[2]
