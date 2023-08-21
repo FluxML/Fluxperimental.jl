@@ -121,10 +121,14 @@ macro compact(_exs...)
   # make strings
   layer = "@compact"
   setup = NamedTuple(map(ex -> Symbol(string(ex.args[1])) => string(ex.args[2]), kwexs))
-  input = try join(fex.args[1].args, ", ") catch e 
-    @warn "function stringifying does not yet handle all cases, using empty string"
-    ""
-  end
+  input =
+      try
+          fex_args = fex.args[1]
+          isa(fex_args, Symbol) ? string(fex_args) : join(fex_args.args, ", ")
+      catch e 
+        @warn "Function stringifying does not yet handle all cases. Falling back to empty string for input arguments"
+        ""
+      end
   block = string(Base.remove_linenums!(fex).args[2])
 
   # edit expressions

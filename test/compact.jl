@@ -214,7 +214,7 @@ end
   end
 
   @testset "Keyword arguments with anonymous function" begin
-    model = @compact(x -> x+a+b; a=1, b=2)
+    @test_nowarn model = @compact(x -> x+a+b; a=1, b=2)
     @test model(3) == 1 + 2 + 3
   end
 
