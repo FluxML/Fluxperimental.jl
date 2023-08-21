@@ -149,7 +149,7 @@ function supportself(fex::Expr, vars)
     $curried_fex = ($self) -> let $(let_exprs...) 
         $fex
     end
-    ($self, args...; kwargs...) -> begin $curried_fex($self)(args...; kwargs...) end
+    ($self, args...; kwargs...) -> $curried_fex($self)(args...; kwargs...)
   end
 end
 
