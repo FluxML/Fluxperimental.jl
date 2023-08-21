@@ -214,8 +214,15 @@ end
   end
 
   @testset "Keyword arguments with anonymous function" begin
-    @test_nowarn model = @compact(x -> x+a+b; a=1, b=2)
+    model = @test_nowarn @compact(x -> x+a+b; a=1, b=2)
     @test model(3) == 1 + 2 + 3
+    expected_string = """@compact(
+      a = 1,
+      b = 2,
+    ) do x 
+        x + a + b
+    end"""
+    @test similar_strings(get_model_string(model), expected_string)
   end
 
   @testset "Scoping of parameter arguments" begin
