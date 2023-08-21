@@ -21,11 +21,15 @@ r([1, 1, 1])  # x is set to [1, 1, 1].
 Here is a linear model with bias and activation:
 
 ```
-d = @compact(in=5, out=7, W=randn(out, in), b=zeros(out), act=relu) do x
+d_in = 5
+d_out = 7
+d = @compact(W = randn(d_out, d_in), b = zeros(d_out), act = relu) do x
   y = W * x
   act.(y .+ b)
 end
-d(ones(5, 10))  # 7×10 Matrix as output.
+d(ones(5, 10)) # 7×10 Matrix as output.
+d([1,2,3,4,5]) ≈ Dense(d.variables.W, zeros(7), relu)([1,2,3,4,5]) # Equivalent to a dense layer
+``` 
 ```
 
 Finally, here is a simple MLP:
@@ -79,11 +83,21 @@ println(model)  # "Linear(3 => 1)"
 This can be useful when using `@compact` to hierarchically construct
 complex models to be used inside a `Chain`.
 """
-macro compact(fex, kwexs...)
-  # check input
+macro compact(fex, _kwexs...)
+  # check inputs
   Meta.isexpr(fex, :(->)) || error("expects a do block")
-  isempty(kwexs) && error("expects keyword arguments")
-  all(ex -> Meta.isexpr(ex, (:kw,:(=))), kwexs) || error("expects only keyword argumens")
+  isempty(_kwexs) && error("expects keyword arguments")
+  all(ex -> Meta.isexpr(ex, (:kw,:(=),:parameters)), _kwexs) || error("expects only keyword arguments")
+
+  # process keyword arguments
+  if Meta.isexpr(_kwexs[1], :parameters) # handle keyword arguments provided after semicolon
+    kwexs1 = map(ex -> ex isa Symbol ? Expr(:kw, ex, ex) : ex, _kwexs[1].args) 
+    _kwexs = _kwexs[2:end]
+  else
+    kwexs1 = ()
+  end
+  kwexs2 = map(ex -> Expr(:kw, ex.args...), _kwexs) # handle keyword arguments provided before semicolon
+  kwexs = (kwexs1..., kwexs2...)
 
   # check if user has named layer:
   name = findfirst(ex -> ex.args[1] == :name, kwexs)
@@ -103,7 +117,6 @@ macro compact(fex, kwexs...)
 
   # edit expressions
   vars = map(ex -> ex.args[1], kwexs)
-  assigns = map(ex -> Expr(:(=), ex.args...), kwexs)
   @gensym self
   pushfirst!(fex.args[1].args, self)
   addprefix!(fex, self, vars)
@@ -111,8 +124,7 @@ macro compact(fex, kwexs...)
   # assemble
   return esc(quote
     let
-      $(assigns...)
-      $CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(vars...))
+      $CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(kwexs...))
     end
   end)
 end
