@@ -68,20 +68,6 @@ for epoch in 1:1000
   Flux.train!((m,x,y) -> (m(x) - y)^2, model, data, optim)
 end
 ```
-
-You may also specify a `name` for the model, which will
-be used instead of the default printout, which gives a verbatim
-representation of the code used to construct the model:
-
-```
-model = @compact(w=rand(3), name="Linear(3 => 1)") do x
-  sum(w .* x)
-end
-println(model)  # "Linear(3 => 1)"
-```
-
-This can be useful when using `@compact` to hierarchically construct
-complex models to be used inside a `Chain`.
 """
 macro compact(_exs...)
   # check inputs, extracting function expression fex and unprocessed keyword arguments _kwexs
@@ -108,16 +94,6 @@ macro compact(_exs...)
   kwexs2 = map(ex -> Expr(:kw, ex.args...), _kwexs) # handle keyword arguments provided before semicolon
   kwexs = (kwexs1..., kwexs2...)
 
-  # check if user has named layer:
-  name = findfirst(ex -> ex.args[1] == :name, kwexs)
-  if name !== nothing && kwexs[name].args[2] !== nothing
-    length(kwexs) == 1 && error("expects keyword arguments")
-    name_str = kwexs[name].args[2]
-    # remove name from kwexs (a tuple)
-    kwexs = (kwexs[1:name-1]..., kwexs[name+1:end]...)
-    name = name_str
-  end
-
   # make strings
   layer = "@compact"
   setup = NamedTuple(map(ex -> Symbol(string(ex.args[1])) => string(ex.args[2]), kwexs))
@@ -136,7 +112,7 @@ macro compact(_exs...)
   fex = supportself(fex, vars)
 
   # assemble
-  return esc(:($CompactLayer($fex, $name, ($layer, $input, $block), $setup; $(kwexs...))))
+  return esc(:($CompactLayer($fex, ($layer, $input, $block), $setup; $(kwexs...))))
 end
 
 function supportself(fex::Expr, vars)
@@ -155,12 +131,11 @@ end
 
 struct CompactLayer{F,NT1<:NamedTuple,NT2<:NamedTuple}
   fun::F
-  name::Union{String,Nothing}
   strings::NTuple{3,String}
   setup_strings::NT1
   variables::NT2
 end
-CompactLayer(f::Function, name::Union{String,Nothing}, str::Tuple, setup_str::NamedTuple; kw...) = CompactLayer(f, name, str, setup_str, NamedTuple(kw))
+CompactLayer(f::Function, str::Tuple, setup_str::NamedTuple; kw...) = CompactLayer(f, str, setup_str, NamedTuple(kw))
 (m::CompactLayer)(x...) = m.fun(m.variables, x...)
 CompactLayer(args...) = error("CompactLayer is meant to be constructed by the macro")
 Flux.@functor CompactLayer
@@ -179,19 +154,9 @@ end
 
 function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
   setup_strings = obj.setup_strings
-  local_name = obj.name
-  has_explicit_name = local_name !== nothing
-  if has_explicit_name
-    if indent != 0 || length(Flux.params(obj)) <= 2
-      _just_show_params(io, local_name, obj, indent)
-    else  # indent == 0
-      print(io, local_name)
-      Flux._big_finale(io, obj)
-    end
-  else  # no name, so print normally
     layer, input, block = obj.strings
     pre, post = ("(", ")")
-    println(io, " "^indent, isnothing(name) ? "" : "$name = ", layer, pre)
+    println(io, " "^indent, "@compact", pre)
     for k in keys(obj.variables)
       v = obj.variables[k]
       if Flux._show_leaflike(v)
@@ -220,7 +185,6 @@ function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
     else
       println(io, ",")
     end
-  end
 end
 
 # Modified from src/layers/show.jl
