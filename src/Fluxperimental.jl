@@ -13,6 +13,9 @@ include("chain.jl")
 
 include("compact.jl")
 
+include("noshow.jl")
+export NoShow
+
 include("new_recur.jl")
 
 end # module Fluxperimental
