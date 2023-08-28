@@ -157,7 +157,7 @@ function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
   setup_strings = obj.setup_strings
     layer, input, block = obj.strings
     pre, post = ("(", ")")
-    println(io, " "^indent, isnothing(name) ? "" : "$name = ", layer, pre)
+    println(io, " "^indent, "@compact", pre)
     for k in keys(obj.variables)
       v = obj.variables[k]
       if Flux._show_leaflike(v)
