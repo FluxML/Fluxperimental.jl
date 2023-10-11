@@ -139,28 +139,6 @@ end
     @test similar_strings(get_model_string(model2), expected_string)
   end
 
-#=  # This test is broken:
-
-julia> model1 = @compact(w1=Dense(32=>32, relu), w2=Dense(32=>32, relu)) do x
-             w2(w1(x));
-
-julia> model2 = @compact(w1=model1, w2=Dense(32=>32, relu)) do x
-             w2(w1(x))
-           end
-@compact(
-  @compact(
-    w1 = Dense(32 => 32, relu),         # 1_056 parameters
-    w2 = Dense(32 => 32, relu),         # 1_056 parameters
-  ) do x 
-      w2(w1(x))
-  end,
-  w2 = Dense(32 => 32, relu),           # 1_056 parameters
-) do x 
-    w2(w1(x))
-end                  # Total: 6 arrays, 3_168 parameters, 13.239 KiB.
-
-=#
-
   @testset "Array parameters" begin
     model = @compact(x=randn(32), w=Dense(32=>32)) do s
       w(x .* s)
@@ -212,3 +190,13 @@ end                  # Total: 6 arrays, 3_168 parameters, 13.239 KiB.
   end
 end
 
+
+@testset "Custom naming of @compact with NoShow" begin
+  _model = @compact(w=Dense(32, 32)) do x, y
+    tmp = sum(w(x))
+    return tmp + y
+  end
+  model = NoShow(_model) 
+  expected_string = "NoShow(...)         # 1_056 parameters"
+  @test similar_strings(get_model_string(model), expected_string)
+end

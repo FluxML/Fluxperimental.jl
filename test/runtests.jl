@@ -7,6 +7,7 @@ using Flux, Fluxperimental
   include("chain.jl")
 
   include("compact.jl")
+  include("noshow.jl")
 
   include("new_recur.jl")
 
