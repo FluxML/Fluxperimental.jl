@@ -101,7 +101,7 @@ end
       (1, 128),
       (1,),
     ]
-    @test size(model(randn(n_in, 32))) == (1, 32)
+    @test size(model(randn(Float32, n_in, 32))) == (1, 32)
   end
 
   @testset "String representations" begin
