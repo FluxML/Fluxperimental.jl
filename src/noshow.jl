@@ -21,11 +21,13 @@ Chain(
   Dense(9 => 10),                       # 100 parameters
 )                   # Total: 8 arrays, 145 parameters, 1.191 KiB.
 
-julia> PseudoLayer((i,o)::Pair) = Parallel(+, Dense(i => o, relu), Dense(i => o, tanh));
+julia> PseudoLayer((i,o)::Pair) = NoShow(
+                                    "PseudoLayer(\$i => \$o)",
+                                    Parallel(+, Dense(i => o, relu), Dense(i => o, tanh)),
+                                  )
+PseudoLayer (generic function with 1 method)
 
-julia> mid = PseudoLayer(3 => 10);
-
-julia> Chain(Dense(2 => 3), NoShow("PseudoLayer(3 => 10)", mid), Dense(9 => 10))
+julia> Chain(Dense(2 => 3), PseudoLayer(3 => 10), Dense(9 => 10))
 Chain(
   Dense(2 => 3),                        # 9 parameters
   PseudoLayer(3 => 10),                 # 80 parameters
