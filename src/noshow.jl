@@ -21,16 +21,16 @@ Chain(
   Dense(9 => 10),                       # 100 parameters
 )                   # Total: 8 arrays, 145 parameters, 1.191 KiB.
 
-julia> PseudoLayer((i,o)::Pair) = NoShow(
-                                    "PseudoLayer(\$i => \$o)",
+julia> pseudolayer((i,o)::Pair) = NoShow(
+                                    "pseudolayer(\$i => \$o)",
                                     Parallel(+, Dense(i => o, relu), Dense(i => o, tanh)),
                                   )
-PseudoLayer (generic function with 1 method)
+pseudolayer (generic function with 1 method)
 
-julia> Chain(Dense(2 => 3), PseudoLayer(3 => 10), Dense(9 => 10))
+julia> Chain(Dense(2 => 3), pseudolayer(3 => 10), Dense(9 => 10))
 Chain(
   Dense(2 => 3),                        # 9 parameters
-  PseudoLayer(3 => 10),                 # 80 parameters
+  pseudolayer(3 => 10),                 # 80 parameters
   Dense(9 => 10),                       # 100 parameters
 )                   # Total: 8 arrays, 189 parameters, 1.379 KiB.
 ```
@@ -40,13 +40,13 @@ struct NoShow{T}
     layer::T
 end
 
-NoShow(layer) = NoShow("", layer)
+NoShow(layer) = NoShow("NoShow(...)", layer)
 
 Flux.@functor NoShow
 
 (no::NoShow)(x...) = no.layer(x...)
 
-Base.show(io::IO, no::NoShow) = print(io, isempty(no.str) ? "NoShow(...)" : no.str)
+Base.show(io::IO, no::NoShow) = print(io, no.str)
 
 Flux._show_leaflike(::NoShow) = true  # I think this is right
 Flux._show_children(::NoShow) = (;)   # Seems to be needed?
