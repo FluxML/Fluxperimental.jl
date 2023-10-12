@@ -68,6 +68,7 @@ for epoch in 1:1000
   Flux.train!((m,x,y) -> (m(x) - y)^2, model, data, optim)
 end
 ```
+To specify a custom printout for the model, you may find [`NoShow`](@ref) useful.
 """
 macro compact(_exs...)
   # check inputs, extracting function expression fex and unprocessed keyword arguments _kwexs
