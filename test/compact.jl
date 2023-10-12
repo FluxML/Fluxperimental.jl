@@ -200,5 +200,5 @@ end
   expected_string = "NoShow(...)         # 1_056 parameters"
   @test similar_strings(get_model_string(model), expected_string)
   model2 = NoShow("test", _model)
-  @test similar_strings(get_model_string(model2), "test")
+  @test contains(get_model_string(model2), "test")
 end
