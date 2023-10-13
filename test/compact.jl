@@ -101,7 +101,7 @@ end
       (1, 128),
       (1,),
     ]
-    @test size(model(randn(n_in, 32))) == (1, 32)
+    @test size(model(randn(Float32, n_in, 32))) == (1, 32)
   end
 
   @testset "String representations" begin
@@ -115,15 +115,6 @@ end
       tmp = sum(w(x))
       return tmp + y
     end"""
-    @test similar_strings(get_model_string(model), expected_string)
-  end
-
-  @testset "Custom naming" begin
-    model = @compact(w=Dense(32, 32), name="Linear(...)") do x, y
-      tmp = sum(w(x))
-      return tmp + y
-    end
-    expected_string = "Linear(...)         # 1_056 parameters"
     @test similar_strings(get_model_string(model), expected_string)
   end
 
@@ -158,41 +149,6 @@ end
     ) do s 
       w(x .* s)
     end                  # Total: 3 arrays, 1_088 parameters, 4.734 KiB."""
-    @test similar_strings(get_model_string(model), expected_string)
-  end
-
-  @testset "Hierarchy with inner model named" begin
-    model = @compact(
-      w1=@compact(w1=randn(32, 32), name="Model(32)") do x
-        w1 * x
-      end,
-      w2=randn(32, 32),
-      w3=randn(32),
-    ) do x
-      w2 * w1(x)
-    end
-    expected_string = """@compact(
-      Model(32),                            # 1_024 parameters
-      w2 = randn(32, 32),                   # 1_024 parameters
-      w3 = randn(32),                       # 32 parameters
-    ) do x 
-        w2 * w1(x)
-    end                  # Total: 3 arrays, 2_080 parameters, 17.089 KiB."""
-    @test similar_strings(get_model_string(model), expected_string)
-  end
-
-  @testset "Hierarchy with outer model named" begin
-    model = @compact(
-      w1=@compact(w1=randn(32, 32)) do x
-        w1 * x
-      end,
-      w2=randn(32, 32),
-      w3=randn(32),
-      name="Model(32)"
-    ) do x
-      w2 * w1(x)
-    end
-    expected_string = """Model(32)                  # Total: 3 arrays, 2_080 parameters, 17.057KiB."""
     @test similar_strings(get_model_string(model), expected_string)
   end
 
@@ -234,3 +190,15 @@ end
   end
 end
 
+
+@testset "Custom naming of @compact with NoShow" begin
+  _model = @compact(w=Dense(32, 32)) do x, y
+    tmp = sum(w(x))
+    return tmp + y
+  end
+  model = NoShow(_model) 
+  expected_string = "NoShow(...)         # 1_056 parameters"
+  @test similar_strings(get_model_string(model), expected_string)
+  model2 = NoShow("test", _model)
+  @test contains(get_model_string(model2), "test")
+end
