@@ -194,26 +194,26 @@ function Flux._big_show(io::IO, obj::CompactLayer, indent::Int=0, name=nothing)
     end
 end
 
-# Temporarily fixing things via piracy, but would be an easy change in Flux
-using Flux: params, underscorise, _childarray_sum, _nan_show
-function Flux._layer_show(io::IO, layer::AbstractArray, indent::Int=0, name=nothing)
-  _str = isnothing(name) ? "" : "$name = "
-  # str = _str * sprint(show, layer, context=io)  # before
-  # str = _str * String(typeof(layer).name.name)  # print Array
-  str = _str * summary(layer)  # print size too, sometimes too long... trim it?
-  print(io, " "^indent, str, indent==0 ? "" : ",")
-  if !isempty(params(layer))
-    print(io, " "^max(2, (indent==0 ? 20 : 39) - indent - length(str)))
-    printstyled(io, "# ", underscorise(sum(length, params(layer); init=0)), " parameters"; 
-color=:light_black)
-    nonparam = _childarray_sum(length, layer) - sum(length, params(layer), init=0)
-    if nonparam > 0
-      printstyled(io, ", plus ", underscorise(nonparam), indent==0 ? " non-trainable" : ""; color=:light_black)
-    end
-    _nan_show(io, params(layer))
-  end
-  indent==0 || println(io)
-end
+# # Temporarily fixing things via piracy, but would be an easy change in Flux
+# using Flux: params, underscorise, _childarray_sum, _nan_show
+# function Flux._layer_show(io::IO, layer::AbstractArray, indent::Int=0, name=nothing)
+#   _str = isnothing(name) ? "" : "$name = "
+#   # str = _str * sprint(show, layer, context=io)  # before
+#   # str = _str * String(typeof(layer).name.name)  # print Array
+#   str = _str * summary(layer)  # print size too, sometimes too long... trim it?
+#   print(io, " "^indent, str, indent==0 ? "" : ",")
+#   if !isempty(params(layer))
+#     print(io, " "^max(2, (indent==0 ? 20 : 39) - indent - length(str)))
+#     printstyled(io, "# ", underscorise(sum(length, params(layer); init=0)), " parameters"; 
+# color=:light_black)
+#     nonparam = _childarray_sum(length, layer) - sum(length, params(layer), init=0)
+#     if nonparam > 0
+#       printstyled(io, ", plus ", underscorise(nonparam), indent==0 ? " non-trainable" : ""; color=:light_black)
+#     end
+#     _nan_show(io, params(layer))
+#   end
+#   indent==0 || println(io)
+# end
 
 # Modified from src/layers/show.jl
 function _just_show_params(io::IO, str::String, layer, indent::Int=0)
