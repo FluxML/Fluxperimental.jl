@@ -81,23 +81,22 @@ macro autostruct(ex)
 end
 
 const DEFINE = Dict{Expr, Tuple}()
-const COUNT = Ref(0)
 
 function _autostruct(expr)
-    Meta.isexpr(expr, :function) || error("expected a function!")
+    Meta.isexpr(expr, :function) || throw("Expected a function definition, like `@autostruct function MyStruct(...); ...`")
+    fun = expr.args[1].args[1]
     ret = expr.args[2].args[end]
     if Meta.isexpr(ret, :return)
         ret = only(ret.args)
     end
-    Meta.isexpr(ret, :call) || error("last line...")
+    Meta.isexpr(ret, :call) || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)`")
+    ret.args[1] === fun || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)`")
     for ex in ret.args
-        ex isa Symbol || error("expected a symbol, got $ex")
+        ex isa Symbol || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)` with only symbols, got $ex")
     end
     name, defex = get!(DEFINE, ret) do  # If we've seen same `ret` before, get it from dict
-        c = COUNT[] += 1
-        fun = ret.args[1]
         str = "$fun(...)"
-        name = Symbol(fun, '#', c)
+        name = gensym(fun)
         fields = map(enumerate(ret.args[2:end])) do (i, field)
             type = Symbol("T#", i)
             :($field::$type)
@@ -107,8 +106,8 @@ function _autostruct(expr)
             struct $name{$(types...)}
                 $(fields...)
             end
-            Flux.@layer $name
-            Base.show(io::IO, _::$name) = print(io, $str)
+            $Flux.@layer $name
+            $Base.show(io::IO, _::$name) = $print(io, $str)
             $fun = $name
         end
         (name, ex)
