@@ -3,7 +3,7 @@
 # Fluxperimental.jl
 
 [![][action-img]][action-url]
-[![][coverage-img]][coverage-url] 
+[![][coverage-img]][coverage-url]
 
 [action-img]: https://github.com/FluxML/Fluxperimental.jl/workflows/CI/badge.svg
 [action-url]: https://github.com/FluxML/Fluxperimental.jl/actions
@@ -35,5 +35,7 @@ As will any features which migrate to Flux itself.
 
 * Layers [`Split` and `Join`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/split_join.jl)
 * More advanced [`train!` function](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/train.jl)
-* Macro for [making custom layers](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/compact.jl) quickly
+* *Two* macros for making custom layers quickly:
+  [`@compact(kw...) do ...`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/compact.jl), and
+  [`@autostruct function Mine(d) ...`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/autostruct.jl).
 * Experimental [`apply(c::Chain, x)`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/chain.jl) interface
