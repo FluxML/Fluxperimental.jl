@@ -1,38 +1,79 @@
 
 """
+    @autostruct function MyLayer(d)
+
+This is a macro for easily defining new layers.
+
+Recall that Flux layer is a `struct` which may contains parameter arrays.
+Usually, the steps to make a new one are:
+1. Define a `struct MyLayer` with the desired fields,
+   and tell Flux to look inside with `@layer MyLayer` (or on earlier versions, `@functor`).
+2. Define a constructor function like `MyLayer(d::Int)`,
+   which initialises the parameters (say to `randn(d, d)`)
+   and returns an instance of the `struct`, some `m::MyLayer`.
+3. Define the forward pass, by making the struct callable: `(m::MyLayer)(x) = ...`
+
+This macro handles step 1, given the function in step 2 together. You still do step 3.
+
+If you change the name or the fields, then the `struct` definition is ahtomatically replaced.
+This works because it defines has an auto-generated name, which is `== MyLayer`.
+
+## Example
+
 ```julia
 @autostruct function MyModel(d::Int)
    dense1, dense2 = [Dense(d=>d, tanh) for _ in 1:2]    # arbitrary code here, not just keyword-like
    dense2.bias[:] .= 1/d
-   return MyModel(dense1, dense2)  # demand this be very simple, no = signs allowed (return optional)
-end
-```
-expands to
-```julia
-struct var"MyModel#001"{T1, T2}  # the number is incremented only when re-run with different field names
-  dense1::T1
-  dense2::T2
+   return MyModel(dense1, dense2)  # this must be very simple, no = signs allowed (return optional)
 end
 
-Flux.@layer var"MyModel#001"  # or the equivalent definitions
-
-function var"MyModel#001"(d::Int)
-   dense1, dense2 = [Dense(d=>d, tanh) for _ in 1:2]
-   dense2.bias[:] .= 1/d
-   return var"MyModel#001"(dense1, dense2)
-end
-
-Base.show(io::IO, ::var"MyModel#001") = print(io, "MyModel(...)")  # can't easily infer input d
-
-MyModel = var"MyModel#001"  # maybe this can't be const
-```
-and would be accompanied by
-```julia
 function (m::MyModel)(x)  # forward pass looks just like a normal struct
   y = m.dense1(x)
   z = m.dense2(y)
   (x .+ y .+ z)./3
 end
+
+Flux.trainable(m::MyModel) = (; m.dense1)  # if necessary, restrict which fields are trainable
+
+MyModel(2) isa MyModel  # true
+```
+
+Here, the macro expands to these steps:
+
+```julia
+struct var"MyModel#001"{T1, T2}
+  dense1::T1
+  dense2::T2  # fields always use type parameters, for performance
+end
+
+Flux.@layer var"MyModel#001"
+
+MyModel = var"MyModel#001"  # the number is incremented only when re-run with different field names
+
+function var"MyModel#001"(d::Int)
+   dense1, dense2 = [Dense(d=>d, tanh) for _ in 1:2]  # your constructor code
+   dense2.bias[:] .= 1/d
+   return var"MyModel#001"(dense1, dense2)
+end
+
+Base.show(io::IO, ::var"MyModel#001") = print(io, "MyModel(...)")  # can't easily infer input d
+```
+
+For comparison, the use of `@compact` to do much the same thing looks like this -- shorter,
+but further from being ordinary Julia code.
+
+```julia
+function MyModel2(d::Int)
+    dense1, dense2 = [Dense(d=>d, tanh) for _ in 1:2]
+    dense2.bias[:] .= 1/d
+    @compact(; dense1, dense2) do x
+        y = m.dense1(x)
+        z = m.dense2(y)
+        (x .+ y .+ z)./3
+    end
+end
+
+MyModel2(2) isa Fluxperimental.CompactLayer  # no easy struct type
 ```
 """
 macro autostruct(ex)
