@@ -4,12 +4,12 @@
 
 This is a macro for easily defining new layers.
 
-Recall that Flux layer is a `struct` which may contain parameter arrays.
+Recall that Flux layer is a callable `struct` which may contain parameter arrays.
 Usually, the steps to define a new one are:
 1. Define a `struct MyLayer` with the desired fields,
    and tell Flux to look inside with `@layer MyLayer` (or on earlier versions, `@functor`).
 2. Define a constructor function like `MyLayer(d::Int)`,
-   which initialises the parameters (say to `randn(d, d)`)
+   which initialises the parameters (say to `randn32(d, d)`)
    and returns an instance of the `struct`, some `m::MyLayer`.
 3. Define the forward pass, by making the struct callable: `(m::MyLayer)(x) = ...`
 
@@ -26,9 +26,9 @@ and result in container-style pretty-printing.
 
 ```julia
 @autostruct function MyModel(d::Int)
-   alpha, beta = [Dense(d=>d, tanh) for _ in 1:2]    # arbitrary code here, not just keyword-like
-   beta.bias[:] .= 1/d
-   return MyModel(alpha, beta)  # this must be very simple, no = signs allowed (return optional)
+  alpha, beta = [Dense(d=>d, tanh) for _ in 1:2]    # arbitrary code here, not just keyword-like
+  beta.bias[:] .= 1/d
+  return MyModel(alpha, beta)  # this must be very simple, no = signs allowed (return optional)
 end
 
 function (m::MyModel)(x)  # forward pass looks just like a normal struct
@@ -38,6 +38,9 @@ function (m::MyModel)(x)  # forward pass looks just like a normal struct
 end
 
 Flux.trainable(m::MyModel) = (; m.alpha)  # if necessary, restrict which fields are trainable
+
+Base.show(io::IO, m::MyModel) =  # if desired, replace default printing "MyModel(...)"
+  print(io, "MyModel(", size(m.alpha.weight, 1), ")")
 
 MyModel(2) isa MyModel  # true
 ```
@@ -92,7 +95,15 @@ function _autostruct(expr; expand::Bool=false)
             :($field::$type)
         end
         types = map(f -> f.args[2], fields)
-        layer = expand ? :($Flux.@layer :expand $name) : :($Flux.@layer $name)
+        layer = if !expand
+            :($Flux.@layer $name)
+        else
+            str = @show "$fun("
+            quote
+                $Flux.@layer :expand $name
+                Flux._show_pre_post(::$name) = $str, ")"  # needs https://github.com/FluxML/Flux.jl/pull/2344
+            end
+        end
         str = "$fun(...)"
         ex = quote
             struct $name{$(types...)}
