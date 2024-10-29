@@ -72,6 +72,7 @@ macro autostruct(ex1, ex2)
 end
 
 const DEFINE = Dict{Tuple, Tuple}()
+const NOFIELD = :_nothing # gensym(:nothing)
 
 function _autostruct(expr; expand::Bool=false)
     # Check first & last line of the input expression:
@@ -87,8 +88,18 @@ function _autostruct(expr; expand::Bool=false)
         ex isa Symbol || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)` with only symbols, got $ex")
     end
 
+    # Ensure that there are more fields than input arguments:
+    narg = _count_args(expr.args[1])
+    nret = _count_args(ret)
+    nothings = Int[]
+    for i in 1:(narg-nret+1)
+        sy = Symbol(NOFIELD, :_, i)
+        push!(ret.args, sy)
+        push!(nothings, length(ret.args))  # index for later use
+    end
+
     # If the last line is new, construct struct definition:
-    name, defex = get!(DEFINE, (ret, expand)) do  # ... but if we've seen same last line before, get same definition
+    name, defex = get!(DEFINE, (ret, expand)) do
         name = gensym(fun)
         fields = map(enumerate(ret.args[2:end])) do (i, field)
             type = Symbol("T#", i)
@@ -98,7 +109,7 @@ function _autostruct(expr; expand::Bool=false)
         layer = if !expand
             :($Flux.@layer $name)
         else
-            str = @show "$fun("
+            str = "$fun("
             quote
                 $Flux.@layer :expand $name
                 Flux._show_pre_post(::$name) = $str, ")"  # needs https://github.com/FluxML/Flux.jl/pull/2344
@@ -118,8 +129,59 @@ function _autostruct(expr; expand::Bool=false)
 
     # Change first line to use the struct's name:
     expr.args[1].args[1] = name
+    # Change last line to use nothing:
+    for j in nothings
+        ret.args[j] = nothing
+    end
     quote
         $(defex.args...)  # struct definition
         $expr  # constructor function
     end
 end
+
+function _count_args(ex::Expr)
+    @assert Meta.isexpr(ex, :call)
+    count(ex.args[2:end]) do arg
+    # Three options for f(a, b::Int, c=3), but not keywords
+        arg isa Symbol || Meta.isexpr(arg, [:(::), :kw])
+    end
+end
+
+
+#=
+
+using Fluxperimental, Flux
+Fluxperimental.DEFINE |> empty!
+
+@autostruct :expand function New1(a)
+    A = Dense(a => a)
+    New1(A)
+end
+
+New1(1)  # prints the nothing :(
+typeof(ans)  # has trailing Nothing :(
+fieldnames(ans)
+
+@autostruct :expand function New1(a, b=2)
+    A = Dense(a => b)
+    New1(A)
+end
+
+New1(2)
+New1(3, 4)
+
+typeof(ans)
+fieldnames(ans)
+
+@autostruct :expand function New3((a,b)::Pair, c=3)
+    A = Dense(a => b)
+    B = Dense(b => c)
+    New3(A, B)
+end
+
+New3(3=>2)
+
+New3(3=>2,1)
+
+
+=#
