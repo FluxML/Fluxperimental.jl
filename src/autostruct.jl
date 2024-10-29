@@ -22,6 +22,10 @@ This works because this definition uses an auto-generated name, which is `== MyL
 Writing `@autostruct :expand function MyLayer(d)` will use `@layer :expand MyLayer`,
 and result in container-style pretty-printing.
 
+Note that the `struct` will sometimes have extra fields containing `nothing`,
+to ensure that your constructor function cannot be ambiguous with the default constructor.
+In the example below, `@autostruct :expand function MyModel(d, d2=d)` will show this behaviour.
+
 ## Example
 
 ```julia
@@ -72,7 +76,7 @@ macro autostruct(ex1, ex2)
 end
 
 const DEFINE = Dict{UInt, Tuple}()
-const NOFIELD = :_nothing # gensym(:nothing)
+const NOFIELD = :_nothing  # perhaps better not gensym(:nothing), to be the same after re-starting, as field names survive in Flux.state(model)
 
 function _autostruct(expr; expand::Bool=false)
     # Check first & last line of the input expression:
@@ -86,6 +90,7 @@ function _autostruct(expr; expand::Bool=false)
     ret.args[1] === fun || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)`")
     for ex in ret.args
         ex isa Symbol || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)` with only symbols, got $ex")
+        contains(string(ex), string(NOFIELD)) && throw("Field names containing `$NOFIELD` are reserved by `@autostruct`")
     end
 
     # Ensure that there are more fields than input arguments:
