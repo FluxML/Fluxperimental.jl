@@ -71,7 +71,7 @@ macro autostruct(ex1, ex2)
     esc(_autostruct(ex2; expand=true))
 end
 
-const DEFINE = Dict{Tuple, Tuple}()
+const DEFINE = Dict{UInt, Tuple}()
 const NOFIELD = :_nothing # gensym(:nothing)
 
 function _autostruct(expr; expand::Bool=false)
@@ -99,7 +99,7 @@ function _autostruct(expr; expand::Bool=false)
     end
 
     # If the last line is new, construct struct definition:
-    name, defex = get!(DEFINE, (ret, expand)) do
+    name, defex = get!(DEFINE, hash(ret, UInt(expand))) do
         name = gensym(fun)
         fields = map(enumerate(ret.args[2:end])) do (i, field)
             if occursin(string(NOFIELD), string(field))
