@@ -102,10 +102,14 @@ function _autostruct(expr; expand::Bool=false)
     name, defex = get!(DEFINE, (ret, expand)) do
         name = gensym(fun)
         fields = map(enumerate(ret.args[2:end])) do (i, field)
-            type = Symbol("T#", i)
-            :($field::$type)
+            if occursin(string(NOFIELD), string(field))
+                :($field::Nothing)
+            else
+                type = Symbol("T#", i)
+                :($field::$type)
+            end
         end
-        types = map(f -> f.args[2], fields)
+        types = filter(T -> T != :Nothing, map(f -> f.args[2], fields))
         layer = if !expand
             :($Flux.@layer $name)
         else
@@ -159,7 +163,7 @@ Fluxperimental.DEFINE |> empty!
 end
 
 New1(1)  # prints the nothing :(
-typeof(ans)  # has trailing Nothing :(
+typeof(ans)  # no more trailing Nothing!
 fieldnames(ans)
 
 @autostruct :expand function New1(a, b=2)
