@@ -12,14 +12,14 @@
 [coverage-url]: https://codecov.io/gh/FluxML/Fluxperimental.jl
 
 
-The repository contains experimental features for [Flux.jl](https://github.com/FluxML/Flux.jl).
+This contains experimental features for [Flux.jl](https://github.com/FluxML/Flux.jl).
 It needs to be loaded in addition to the main package:
 
 ```julia
 using Flux, Fluxperimental
 ```
 
-As an experiment, it only has discussion pages, not issues. Actual bugs reports are welcome,
+As an experiment, this repository only has discussion pages, not issues. Actual bugs reports are welcome,
 as are comments that you think something is a great idea, or better ways achive the same goal,
 or nice examples showing how it works.
 
@@ -32,6 +32,9 @@ Features which break or are abandoned will be removed, in a minor (breaking) rel
 As will any features which migrate to Flux itself.
 
 ## Current Features
+
+There are no formal documentation pages, but these links to the source will show you docstrings
+(which are also available at the REPL prompt).
 
 * Layers [`Split` and `Join`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/split_join.jl)
 * More advanced [`train!` function](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/train.jl)
