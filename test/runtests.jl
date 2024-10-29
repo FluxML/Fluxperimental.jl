@@ -9,6 +9,8 @@ using Flux, Fluxperimental
   include("compact.jl")
   include("noshow.jl")
 
+  include("autostruct.jl")
+
   include("new_recur.jl")
 
 end
