@@ -1,6 +1,6 @@
 Fluxperimental.DEFINE |> empty!
 
-@autostruct function New1(a)
+@autostruct function New1(a::Int)
     A = Dense(a => 2a)
     New1(A)
 end
@@ -16,7 +16,7 @@ end
 
 id1 = string(New1)  # something like "var\"##New1#265\""
 
-@autostruct function New1(a)  # re-definition of constructor, same struct!
+@autostruct function New1(a::Int)  # re-definition of constructor, same struct!
     A = Dense(2a => a, tanh)
     New1(A)
 end
@@ -33,7 +33,7 @@ end
 
 @autostruct :expand function New1(a, b=3)  # new struct, both for :expand and for b argument
     A = Dense(a => b)
-    New1(A)
+    New1(A::Dense)
 end
 
 @testset "new defn" begin
