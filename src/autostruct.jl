@@ -54,8 +54,8 @@ struct MyModel001{T1, T2}
 end
 ```
 
-Since this can hold any objects, even `MyModel("hello", "world")`.
-As you can see by looking `methods(MyModel)`, there should never be an ambiguity
+Since this can hold any objects, even `MyModel("hello", "world")`, 
+as you can see by looking `methods(MyModel)`, there should never be an ambiguity
 between the `struct`'s own constructor, and your `MyModel(d::Int)`.
 
 You can also restrict the types allowed in the struct:
@@ -137,7 +137,6 @@ function _autostruct(expr; expand::Bool=false)
         fields = map(enumerate(ret.args[2:end])) do (i, ex)
             field = ex isa Symbol ? ex : ex.args[1]  # we allow `return MyModel(alpha, beta::Chain)`
             type = Symbol("T#", i)
-            @show ex field type
             :($field::$type)
         end
         types = map(fields, ret.args[2:end]) do ft, ex
