@@ -147,7 +147,6 @@ function _autostruct(expr; expand::Bool=false)
     end
     funargs = expr.args[1].args[2:end]
     retargs = ret.args[2:end]
-    @show funargs retargs
     if length(retargs) == length(funargs) && all(ex -> ex isa Symbol, retargs) && all(ex -> ex isa Symbol, funargs)
         # This check only catches cases like MyFun(a) -> MyFun(A), not MyFun(as...) or MyFun(a, b=1) or MyFun(a; b=1)
         @warn "Function $(expr.args[1]) will be ambiguous with struct $ret. " *
