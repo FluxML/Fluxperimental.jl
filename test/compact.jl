@@ -19,11 +19,7 @@ function similar_strings(s1, s2)
   return s1 == s2
 end
 
-function get_model_string(model)
-  io = IOBuffer()
-  show(io, MIME"text/plain"(), model)
-  String(take!(io))
-end
+get_model_string(model) = repr(MIME("text/plain"), model)
 
 @testset "@compact" begin
 
@@ -138,6 +134,29 @@ end
     end                  # Total: 6 arrays, 3_168 parameters, 13.271 KiB."""
     @test similar_strings(get_model_string(model2), expected_string)
   end
+
+#=  # This test is broken:
+
+julia> model1 = @compact(w1=Dense(32=>32, relu), w2=Dense(32=>32, relu)) do x
+             w2(w1(x))
+            end;
+
+julia> model2 = @compact(w1=model1, w2=Dense(32=>32, relu)) do x
+             w2(w1(x))
+           end
+@compact(
+  @compact(
+    w1 = Dense(32 => 32, relu),         # 1_056 parameters
+    w2 = Dense(32 => 32, relu),         # 1_056 parameters
+  ) do x 
+      w2(w1(x))
+  end,
+  w2 = Dense(32 => 32, relu),           # 1_056 parameters
+) do x 
+    w2(w1(x))
+end                  # Total: 6 arrays, 3_168 parameters, 13.239 KiB.
+
+=#
 
   @testset "Array parameters" begin
     model = @compact(x=randn(32), w=Dense(32=>32)) do s

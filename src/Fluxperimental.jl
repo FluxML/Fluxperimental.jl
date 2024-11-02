@@ -12,6 +12,7 @@ export shinkansen!
 include("chain.jl")
 
 include("compact.jl")
+export @compact
 
 include("noshow.jl")
 export NoShow
