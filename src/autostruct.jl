@@ -15,12 +15,16 @@ Usually, the steps to define a new one are:
 
 Given the function in step 2, this macro handles step 1. You still do step 3.
 
-If you change the name or types of the fields, then the `struct` definition is automatically replaced.
+If you change the name or types of the fields, then the `struct` definition is
+automatically replaced, without re-starting Julia.
 This works because this definition uses an auto-generated name, which is `== MyLayer`.
 (But existing instances of the old `struct` are not changed in any way!)
 
 Writing `@autostruct :expand function MyLayer(d)` will use `@layer :expand MyLayer`,
 and result in container-style pretty-printing.
+
+See [AutoStructs.jl](https://github.com/CarloLucibello/AutoStructs.jl) for
+a version of this macro aimed at non-Flux uses.
 
 ## Examples
 
@@ -54,11 +58,12 @@ struct MyModel001{T1, T2}
 end
 ```
 
-Since this can hold any objects, even `MyModel("hello", "world")`, 
-as you can see by looking `methods(MyModel)`, there should never be an ambiguity
+This can hold any objects, even `MyModel("hello", "world")`.
+As you can see by looking `methods(MyModel)`, there should never be an ambiguity
 between the `struct`'s own constructor, and your `MyModel(d::Int)`.
 
 You can also restrict the types allowed in the struct:
+
 ```
 @autostruct :expand function MyOtherModel(d1, d2, act=identity)
   gamma = Embedding(128 => d1)
@@ -71,13 +76,24 @@ end
 methods(MyOtherModel)  # will show 3 methods
 ```
 
-This creates a struct like this:
+Such restrictions change the struct like this:
 
 ```julia
-struct MyOtherModel001{T1 <: Embedding, T2 <: Dense}
+struct MyOtherModel002{T1 <: Embedding, T2 <: Dense}
   gamma::T1
   delta::T2
 end
+```
+
+If you need to add additional constructor methods, the obvious syntax will not work.
+But you can add them to the type, like this:
+
+```julia
+MyModel(str::String) = MyModel(parse(Int, str))
+# ERROR: cannot define function MyModel; it already has a value
+
+(::Type{MyModel})(str::String) = MyModel(parse(Int, str))
+MyModel("4")  # this works
 ```
 
 ## Compared to `@compact`
@@ -113,22 +129,74 @@ macro autostruct(ex1, ex2)
     esc(_autostruct(ex2; expand=true))
 end
 
+"""
+    @autostruct MyType(field1, field2, ...)
+
+Used like this, without a `function`, the macro creates a `struct` with the fields indicated.
+`@autostruct MyType(field1, field2::Function)` expands to roughly this:
+
+```julia
+struct MyType003{T1, T2 <: Function}
+  field1::T1
+  fiedl2::T2
+end
+
+Flux.@layer :expand MyType002
+
+MyType = MyType003  # this allows re-definition
+```
+
+To use this as a Flux layer, you will also need to make it callable,
+by writing for instance:
+
+```julia
+(m::MyType)(x) = m.field1(x) .+ x .|> m.field2
+
+m1 = MyType(Chain(vcat, Dense(1 => 5, relu)), cbrt)
+
+m1(-2)
+```
+"""
+var"@autostruct"
+
 const DEFINE = Dict{UInt, Tuple}()
 
-function _autostruct(expr; expand::Bool=false)
-    # Check first & last line of the input expression:
-    Meta.isexpr(expr, :function) || throw("Expected a function definition, like `@autostruct function MyStruct(...); ...`")
+struct _NoCall
+    _NoCall() = error("this object is meant never to be created")
+end
+
+function _autostruct(expr; expand=nothing)
+    if Meta.isexpr(expr, :function)  # original path, @autostruct function MyStruct(...); ...
+        expand = something(expand, false)
+    elseif Meta.isexpr(expr, :call)  # one-line, @autostruct MyStruct(field)
+        fun = expr.args[1]
+        newex = :(function $fun(_::$_NoCall)  # perhaps not the cleanest implementation
+            $expr
+        end)
+        return _autostruct(newex; expand = expand = something(expand, true))
+    else
+        throw("Expected a function definition, like `@autostruct function MyStruct(...); ...`, or a call like `@autostruct MyStruct(...)`")
+    end
     fun = expr.args[1].args[1]
     ret = expr.args[2].args[end]
     if Meta.isexpr(ret, :return)
         ret = only(ret.args)
     end
+
+    # Check first & last line of the input expression:
     Meta.isexpr(ret, :call) || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)`")
     ret.args[1] === fun || throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)`")
     for ex in ret.args
         ex isa Symbol && continue
         Meta.isexpr(ex, :(::)) && continue
         throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)` or `$fun(field1::T1, field2::T2, ...)`, but got $ex")
+    end
+    funargs = expr.args[1].args[2:end]
+    retargs = ret.args[2:end]
+    if length(retargs) == length(funargs) && all(ex -> ex isa Symbol, retargs) && all(ex -> ex isa Symbol, funargs)
+        # This check only catches cases like MyFun(a) -> MyFun(A), not MyFun(as...) or MyFun(a, b=1) or MyFun(a; b=1)
+        @warn "Function $(expr.args[1]) will be ambiguous with struct $ret. " *
+            "Please add some type restrictions to the function, or to the return line (which sets struct fields)"
     end
 
     # If the last line is new, construct struct definition:
