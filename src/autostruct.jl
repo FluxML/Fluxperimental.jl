@@ -15,7 +15,8 @@ Usually, the steps to define a new one are:
 
 Given the function in step 2, this macro handles step 1. You still do step 3.
 
-If you change the name or types of the fields, then the `struct` definition is automatically replaced.
+If you change the name or types of the fields, then the `struct` definition is
+automatically replaced, without re-starting Julia.
 This works because this definition uses an auto-generated name, which is `== MyLayer`.
 (But existing instances of the old `struct` are not changed in any way!)
 
@@ -54,8 +55,8 @@ struct MyModel001{T1, T2}
 end
 ```
 
-Since this can hold any objects, even `MyModel("hello", "world")`, 
-as you can see by looking `methods(MyModel)`, there should never be an ambiguity
+This can hold any objects, even `MyModel("hello", "world")`.
+As you can see by looking `methods(MyModel)`, there should never be an ambiguity
 between the `struct`'s own constructor, and your `MyModel(d::Int)`.
 
 You can also restrict the types allowed in the struct:
@@ -78,6 +79,17 @@ struct MyOtherModel001{T1 <: Embedding, T2 <: Dense}
   gamma::T1
   delta::T2
 end
+```
+
+If you need to add additional constructor methods, the obvious syntax will not work.
+But you can add them to the type, like this:
+
+```julia
+MyModel(str::String) = MyModel(parse(Int, str))
+# ERROR: cannot define function MyModel; it already has a value
+
+(::Type{MyModel})(str::String) = MyModel(parse(Int, str))
+MyModel("4")  # this works
 ```
 
 ## Compared to `@compact`
