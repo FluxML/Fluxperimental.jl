@@ -130,6 +130,14 @@ function _autostruct(expr; expand::Bool=false)
         Meta.isexpr(ex, :(::)) && continue
         throw("Last line of `@autostruct function $fun` must return `$fun(field1, field2, ...)` or `$fun(field1::T1, field2::T2, ...)`, but got $ex")
     end
+    funargs = expr.args[1].args[2:end]
+    retargs = ret.args[2:end]
+    @show funargs retargs
+    if length(retargs) == length(funargs) && all(ex -> ex isa Symbol, retargs) && all(ex -> ex isa Symbol, funargs)
+        # This check only catches cases like MyFun(a) -> MyFun(A), not MyFun(as...) or MyFun(a, b=1) or MyFun(a; b=1)
+        @warn "Function $(expr.args[1]) will be ambiguous with struct $ret. " *
+            "Please add some type restrictions to the function, or to the return line (which sets struct fields)"
+    end
 
     # If the last line is new, construct struct definition:
     name, defex = get!(DEFINE, hash(ret, UInt(expand))) do
