@@ -45,3 +45,14 @@ end
     @test contains(repr("text/plain", m3), "New1(\n")
     @test contains(repr("text/plain", m3), "Dense(3 => 3)")
 end
+
+@autostruct One(field::Dense)
+
+@testset "no-function" begin
+    m1 = One(Dense(2=>3))
+    @test Flux.state(m1).field.bias == zeros(Float32, 3)
+    @test_throws MethodError One(3)
+    # pretty printing
+    @test contains(repr("text/plain", m1), "One(\n")
+    @test contains(repr("text/plain", m1), "Dense(2 => 3)")
+end
