@@ -23,6 +23,9 @@ This works because this definition uses an auto-generated name, which is `== MyL
 Writing `@autostruct :expand function MyLayer(d)` will use `@layer :expand MyLayer`,
 and result in container-style pretty-printing.
 
+See [AutoStructs.jl](https://github.com/CarloLucibello/AutoStructs.jl) for
+a version of this macro aimed at non-Flux uses.
+
 ## Examples
 
 ```julia
