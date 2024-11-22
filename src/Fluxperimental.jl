@@ -21,4 +21,7 @@ export @autostruct
 
 include("new_recur.jl")
 
+include("mooncake.jl")
+export Moonduo
+
 end # module Fluxperimental

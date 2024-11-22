@@ -10,9 +10,16 @@ Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
+[weakdeps]
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+
+[extensions]
+FluxMooncakeExt = "Mooncake"
+
 [compat]
 Compat = "4"
-Flux = "0.14.23"
+Flux = "0.14.23, 0.15"
+Mooncake = "0.4.42"
 NNlib = "0.9"
 Optimisers = "0.3, 0.4"
 ProgressMeter = "1.7.2"
