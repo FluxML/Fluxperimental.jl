@@ -4,8 +4,6 @@ using Flux, Fluxperimental, Mooncake
 import Fluxperimental: _moonstrip
 # using Flux: Const
 
-println("loaded mooncake ext")
-
 function Fluxperimental.Moonduo(x)
   dx = Mooncake.zero_tangent(x)
   Moonduo(x, dx)
@@ -94,7 +92,8 @@ function _moon_withgradient(f, args::Moonduo...; zero)
   rule = Mooncake.build_rrule(f, plain...)
 
   for x in args
-    zero && _moonzero!(x.dval)
+    _check_mutable(x)
+    zero && Mooncake.set_to_zero!!(x.dval)
   end
   coduals = map(x -> Mooncake.CoDual(x.val, x.dval), args)
   val, _ = Mooncake.__value_and_gradient!!(rule, Mooncake.zero_codual(f), coduals...)
@@ -103,16 +102,10 @@ function _moon_withgradient(f, args::Moonduo...; zero)
   (; val, grad)
 end
 
-_moonzero!(dx::Mooncake.Tangent) = foreach(_moonzero!, dx.fields)
-_moonzero!(dx::Mooncake.MutableTangent) = foreach(_moonzero!, dx.fields)
-_moonzero!(dx::Mooncake.NoTangent) = nothing
-_moonzero!(dx::Union{Tuple, NamedTuple, AbstractArray}) = foreach(_moonzero!, dx)
-_moonzero!(dx::AbstractArray{Mooncake.NoTangent}) = nothing
-_moonzero!(dx::AbstractArray{<:Number}) = dx .= 0
-function _moonzero!(dx)
-  @warn "not sure what to do with this type" typeof(dx)
-  dx
-end
+# _check_mutable(x::Const) = nothing
+_check_mutable(x::Moonduo) = Functors.anymutable(x) || error(
+    """`Flux.gradient(f, Moonduo(x), ...)` expects `x` to contain mutable parameter arrays."""
+)
 
 _moonstrip(dx::Mooncake.Tangent) = map(_moonstrip, dx.fields)
 _moonstrip(dx::Mooncake.MutableTangent) = map(_moonstrip, dx.fields)
@@ -120,6 +113,8 @@ _moonstrip(dx::Mooncake.NoTangent) = nothing
 _moonstrip(dx::Union{Tuple, NamedTuple, AbstractArray}) = map(_moonstrip, dx)
 _moonstrip(dx::AbstractArray{Mooncake.NoTangent}) = nothing
 _moonstrip(dx::AbstractArray{<:Number}) = dx
+_moonstrip(dx::AbstractArray{<:Integer}) = nothing
+_moonstrip!(dx::Number) = nothing
 function _moonstrip(dx)
   @warn "not sure what to do with this type" typeof(dx)
   dx
@@ -132,6 +127,36 @@ Flux.setup(m::Moonduo) = Flux.setup(m.val)
 function Flux.update!(opt_state, model::Moonduo)
   Flux.update!(opt_state, model.val, _moonstrip(model.dval))
   nothing
+end
+
+### Flux.Train, for train!
+
+_applyloss(loss, model, d...) = loss(model, d...)
+
+"""
+    train!(loss, Moonduo(model), data, opt_state)
+
+This method uses Mooncake.jl instead of Zygote.jl to compute the gradients, but is otherwise the
+same as `Flux.train!(loss, model, data, opt_state)`.
+"""
+function Flux.train!(loss, model::Moonduo, data, opt; cb=nothing, epochs::Int=1)
+  isnothing(cb) || error("""train! does not support callback functions.
+                            For more control use a loop with `gradient` and `update!`.""")
+  Flux.Train.@withprogress for (i,d) in enumerate(Iterators.cycle(data, epochs))
+    d_splat = d isa Tuple ? d : (d,)
+    rule = Mooncake.build_rrule(f, model.val, d_splat...)  # perhaps not ideal to do this inside the loop?
+
+    Mooncake.set_to_zero!!(model.dval)
+    l, _ = Mooncake.__value_and_gradient!!(rule, Mooncake.zero_codual(f), model, map(Mooncake.zero_codual, d_splat)...)
+
+    if !isfinite(l)
+      throw(DomainError(lazy"Loss is $l on data item $i, stopping training"))
+    end
+
+    Flux.update!(opt, model)
+
+    Flux.Train.@logprogress Base.haslength(data) ? i/(length(data)*epochs) : nothing
+  end
 end
 
 end  # module
