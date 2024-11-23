@@ -55,6 +55,11 @@ julia> Flux.gradient(dup_model, Moonduo([1]); zero=false) do m, x  # grad accumu
        end
 ((layers = ((weight = [12.0;;], bias = [12.0], σ = nothing),),), nothing)
 ```
+
+!!! note
+    At present there is no way to mark some arguments constant.
+    Instead of `gradient(loss, Duplicated(model), Const(data))`,
+    you can write `gradient(m -> loss(m, data), Moonduo(model))`.
 """
 Flux.gradient(f, args::Moonduo...; zero::Bool=true) = _moon_withgradient(f, args...; zero).grad
 

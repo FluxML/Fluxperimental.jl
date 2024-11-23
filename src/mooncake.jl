@@ -8,9 +8,9 @@ when you call `Moonduo(x)`.
 This serves the same purpose as Enzyme.jl's `Duplicated` type.
 Both of these AD engines prefer that space for the gradient be pre-allocated.
 
-Maybe this is like Mooncake.CoDual, except that it's marked private and seems discouraged:
+Maybe this is like `Mooncake.CoDual`, except that is marked private, and seems discouraged:
 https://github.com/compintell/Mooncake.jl/issues/275
-
+An advantage of Flux owning this type is that we can provide pretty printing without piracy.
 """
 struct Moonduo{X,DX}
   val::X
