@@ -1,6 +1,6 @@
 module FluxMooncakeExt
 
-using Flux, Fluxperimental, Mooncake
+using Flux, Fluxperimental, Optimisers, Functors, Mooncake
 import Fluxperimental: _moonstrip
 # using Flux: Const
 
@@ -98,7 +98,7 @@ function _moon_withgradient(f, args::Moonduo...; zero)
   coduals = map(x -> Mooncake.CoDual(x.val, x.dval), args)
   val, _ = Mooncake.__value_and_gradient!!(rule, Mooncake.zero_codual(f), coduals...)
 
-  grad = map(x -> _moonstrip(x.dval), args)
+  grad = map(x -> _moongrad(x.dval), args)
   (; val, grad)
 end
 
@@ -107,6 +107,12 @@ _check_mutable(x::Moonduo) = Functors.anymutable(x) || error(
     """`Flux.gradient(f, Moonduo(x), ...)` expects `x` to contain mutable parameter arrays."""
 )
 
+function _moongrad(dx)
+  dx2 = _moonstrip(dx)  # remove all the weird types
+  isnothing(dx2) && return
+  return Flux.fmapstructure(identity, dx2; prune=nothing)
+end
+
 _moonstrip(dx::Mooncake.Tangent) = map(_moonstrip, dx.fields)
 _moonstrip(dx::Mooncake.MutableTangent) = map(_moonstrip, dx.fields)
 _moonstrip(dx::Mooncake.NoTangent) = nothing
@@ -114,7 +120,7 @@ _moonstrip(dx::Union{Tuple, NamedTuple, AbstractArray}) = map(_moonstrip, dx)
 _moonstrip(dx::AbstractArray{Mooncake.NoTangent}) = nothing
 _moonstrip(dx::AbstractArray{<:Number}) = dx
 _moonstrip(dx::AbstractArray{<:Integer}) = nothing
-_moonstrip!(dx::Number) = nothing
+_moonstrip(dx::Number) = nothing
 function _moonstrip(dx)
   @warn "not sure what to do with this type" typeof(dx)
   dx
@@ -122,10 +128,10 @@ end
 
 # Optimisers etc.
 
-Flux.setup(m::Moonduo) = Flux.setup(m.val)
+Flux.setup(rule::Optimisers.AbstractRule, m::Moonduo) = Flux.setup(rule, m.val)
 
 function Flux.update!(opt_state, model::Moonduo)
-  Flux.update!(opt_state, model.val, _moonstrip(model.dval))
+  Flux.update!(opt_state, model.val, _moongrad(model.dval))
   nothing
 end
 

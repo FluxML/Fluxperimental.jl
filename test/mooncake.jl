@@ -8,7 +8,7 @@ using Flux, Fluxperimental, Mooncake
     g1 = Flux.gradient(m -> sum(m.bias), m1) |> only
     @test iszero(g1.weight)
     @test g1.bias == [1, 1]
-    @test m1.dval.bias == [1, 1]
+    @test m1.dval.fields.bias == [1, 1]
 
     g2 = Flux.withgradient((m,x) -> sum(m(x)), m1, Moonduo([1,2,3f0]))  # would prefer Const
     @test g2.val ≈ sum(m1([1,2,3f0]))
