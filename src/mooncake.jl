@@ -7,10 +7,6 @@ when you call `Moonduo(x)`.
 
 This serves the same purpose as Enzyme.jl's `Duplicated` type.
 Both of these AD engines prefer that space for the gradient be pre-allocated.
-
-Maybe this is like `Mooncake.CoDual`, except that is marked private, and seems discouraged:
-https://github.com/compintell/Mooncake.jl/issues/275
-An advantage of Flux owning this type is that we can provide pretty printing without piracy.
 """
 struct Moonduo{X,DX}
   val::X
@@ -29,7 +25,12 @@ Optimisers.trainable(m::Moonduo) = (; m.val)
 
 Flux.@layer :expand Moonduo
 
-(m::Moonduo)(x...) = m.val(x...)
+function (m::Moonduo)(x...)
+    Zygote.isderiving() && error("""`Moonduo(flux_model)` is only for use with Mooncake.jl.
+            Calling `Zygote.gradient` directly on such a wrapped model is not supported.
+            You may have accidentally called `Flux.gradient(loss, Moonduo(model), x)` without wrapping `x`.""")
+    m.val(x...)
+end
 
 function _moonstrip end
 
