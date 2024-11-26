@@ -8,6 +8,8 @@ export Split, Join
 include("train.jl")
 export shinkansen!
 
+include("reactant.jl")
+export Fluxactor
 
 include("chain.jl")
 
