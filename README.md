@@ -42,3 +42,4 @@ There are no formal documentation pages, but these links to the source will show
   [`@compact(kw...) do ...`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/compact.jl), and
   [`@autostruct function Mine(d) ...`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/autostruct.jl).
 * Experimental [`apply(c::Chain, x)`](https://github.com/FluxML/Fluxperimental.jl/blob/master/src/chain.jl) interface
+* Easy way to [use Mooncake.jl](https://github.com/FluxML/Fluxperimental.jl/blob/master/ext/FluxMooncakeExt.jl) instead of Zygote.jl.

@@ -1,18 +1,26 @@
 name = "Fluxperimental"
 uuid = "3102ee7a-c841-4564-8f7f-ec69bd4fd658"
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
+[weakdeps]
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+
+[extensions]
+FluxMooncakeExt = "Mooncake"
+
 [compat]
 Compat = "4"
-Flux = "0.14.23"
+Flux = "0.14.23, 0.15"
+Mooncake = "0.4.42"
 NNlib = "0.9"
 Optimisers = "0.3, 0.4"
 ProgressMeter = "1.7.2"
@@ -23,4 +31,4 @@ julia = "1.10"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Test", "Mooncake"]

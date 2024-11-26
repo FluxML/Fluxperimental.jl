@@ -13,4 +13,5 @@ using Flux, Fluxperimental
 
   include("new_recur.jl")
 
+  include("mooncake.jl")
 end
