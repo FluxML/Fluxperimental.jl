@@ -5,7 +5,6 @@ version = "0.2.3"
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
-Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"

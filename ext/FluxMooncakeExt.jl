@@ -1,6 +1,6 @@
 module FluxMooncakeExt
 
-using Flux, Fluxperimental, Optimisers, Functors, Mooncake
+using Flux, Fluxperimental, Optimisers, Mooncake
 import Fluxperimental: _moonstrip
 # using Flux: Const
 
@@ -108,7 +108,7 @@ function _moon_withgradient(f, args::Moonduo...; zero)
 end
 
 # _check_mutable(x::Const) = nothing
-_check_mutable(x::Moonduo) = Functors.anymutable(x) || error(
+_check_mutable(x::Moonduo) = Flux.Functors.anymutable(x) || error(
     """`Flux.gradient(f, Moonduo(x), ...)` expects `x` to contain mutable parameter arrays."""
 )
 
