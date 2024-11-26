@@ -9,7 +9,7 @@ function Fluxperimental.Moonduo(x)
   Moonduo(x, dx)
 end
 
-# Flux gradient etc.
+### Flux gradient etc.
 
 """
     Flux.gradient(f, args::Moonduo...)
@@ -124,14 +124,13 @@ _moonstrip(dx::Mooncake.NoTangent) = nothing
 _moonstrip(dx::Union{Tuple, NamedTuple, AbstractArray}) = map(_moonstrip, dx)
 _moonstrip(dx::AbstractArray{Mooncake.NoTangent}) = nothing
 _moonstrip(dx::AbstractArray{<:Number}) = dx
-_moonstrip(dx::AbstractArray{<:Integer}) = nothing
 _moonstrip(dx::Number) = nothing
 function _moonstrip(dx)
-  @warn "not sure what to do with this type" typeof(dx)
+  @error "not sure what to do with this type, in a gradient from Mooncake" typeof(dx)
   dx
 end
 
-# Optimisers etc.
+### Optimisers etc.
 
 Flux.setup(rule::Optimisers.AbstractRule, m::Moonduo) = Flux.setup(rule, m.val)
 
@@ -168,6 +167,19 @@ function Flux.train!(loss, model::Moonduo, data, opt; cb=nothing, epochs::Int=1)
 
     Flux.Train.@logprogress Base.haslength(data) ? i/(length(data)*epochs) : nothing
   end
+end
+
+### Model state & loading
+
+Flux.state(x::Moonduo) = Flux.state(x.val)
+
+function Flux.loadmodel!(dst::Moonduo, src::Moonduo; kw...)
+   Flux.loadmodel!(dst.val, src.val; kw...)
+   dst
+end
+function Flux.loadmodel!(dst::Moonduo, src; kw...)
+    Flux.loadmodel!(dst.val, src; kw...)
+    dst
 end
 
 end  # module
