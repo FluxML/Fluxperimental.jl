@@ -42,7 +42,7 @@ end
 
 NoShow(layer) = NoShow("NoShow(...)", layer)
 
-Flux.@functor NoShow
+Flux.Functors.@functor NoShow
 
 (no::NoShow)(x...) = no.layer(x...)
 
