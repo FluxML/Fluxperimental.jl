@@ -26,7 +26,7 @@ Optimisers.trainable(m::Moonduo) = (; m.val)
 Flux.@layer :expand Moonduo
 
 function (m::Moonduo)(x...)
-    Zygote.isderiving() && error("""`Moonduo(flux_model)` is only for use with Mooncake.jl.
+    Flux.Zygote.isderiving() && error("""`Moonduo(flux_model)` is only for use with Mooncake.jl.
             Calling `Zygote.gradient` directly on such a wrapped model is not supported.
             You may have accidentally called `Flux.gradient(loss, Moonduo(model), x)` without wrapping `x`.""")
     m.val(x...)
