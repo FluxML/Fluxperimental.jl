@@ -139,7 +139,7 @@ end
 CompactLayer(f::Function, str::Tuple, setup_str::NamedTuple; kw...) = CompactLayer(f, str, setup_str, NamedTuple(kw))
 (m::CompactLayer)(x...) = m.fun(m.variables, x...)
 CompactLayer(args...) = error("CompactLayer is meant to be constructed by the macro")
-Flux.@functor CompactLayer
+Flux.Functors.@functor CompactLayer
 
 Flux._show_children(m::CompactLayer) = m.variables
 
