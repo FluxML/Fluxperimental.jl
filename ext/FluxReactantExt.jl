@@ -112,21 +112,23 @@ julia> img = rand32(28, 28, 1, 128);
 
 julia> mlp = Chain(Flux.flatten, Dense(28^2 => 32, tanh), Dense(32 => 10));
 
-julia> re_mlp = Reactor(mlp);  # signal to use Reactant
-
 julia> loss(m, x) = sum(abs2, m(x));
 
 julia> Flux.gradient(loss, mlp, img)[1].layers[2].bias[1:3]  # uses Zygote
 3-element Vector{Float32}:
- -34.729736
-  -9.933558
- -47.216736
+  13.273897
+   1.7208669
+ -63.32639
 
-julia> Flux.gradient(loss, Duplicated(mlp), Const(img))[1].layers[2].bias[1:3]  # uses Enzyme
+julia> dup_mlp = Duplicated(mlp);
+
+julia> Flux.gradient(loss, dup_mlp, Const(img))[1].layers[2].bias[1:3]  # uses Enzyme
 3-element Vector{Float32}:
- -34.72973
-  -9.933559
- -47.216732
+  13.273898
+   1.7208662
+ -63.3264
+
+julia> re_mlp = Reactor(mlp);
 
 julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]  # uses Reactant
 [ Info: compiling gradient(loss, ::Reactor, ::Const...)
@@ -141,16 +143,16 @@ Stacktrace:
  [4] gradient(f::Function, m::Reactor{Chain{Tuple{typeof(Flux.flatten), Dense{…}, Dense{…}}}}, xs::Const{Array{Float32, 4}})
    @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:190
  [5] top-level scope
-   @ REPL[81]:1
+   @ REPL[95]:1
 Some type information was truncated. Use `show(err)` to see complete types.
 
 julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]
 3-element ConcreteRArray{Float32, 1}:
- -34.729725
-  -9.933557
- -47.216736
+  13.273894
+   1.7208662
+ -63.3264
 
-julia> re_mlp
+julia> re_mlp  # note aside that summarysize doesn't work, TODO
 Reactor(
   Chain(
     Flux.flatten,
@@ -158,10 +160,21 @@ Reactor(
     Dense(32 => 10),                    # 330 parameters
   ),
   # call not yet compiled
-  # norm(∇) ≈ 0.0
+  # norm(∇) ≈ 3590.0f0
   # ∇compiled for loss, 28×28×1×128 ConcreteRArray{Float32, 4}, and run 1 times
 )         # Total: 4 trainable arrays, 25_450 parameters,
           # plus 4 non-trainable, 25_450 parameters, summarysize 711 bytes.
+
+julia> dup_mlp  # Enzyme wrapper stores the same gradient
+Duplicated(
+  Chain(
+    Flux.flatten,
+    Dense(784 => 32, tanh),             # 25_120 parameters
+    Dense(32 => 10),                    # 330 parameters
+  ),
+  # norm(∇) ≈ 3590.0f0
+)         # Total: 4 trainable arrays, 25_450 parameters,
+          # plus 4 non-trainable, 25_450 parameters, summarysize 199.391 KiB.
 ```
 """
 function Flux.gradient(f::Function, m::Reactor, xs::Const...)
@@ -197,6 +210,7 @@ end
 
 # This function strips the returned gradient to be Zygote-like:
 _grad_or_nothing(dup::Duplicated) = Flux.fmapstructure(_grad_or_nothing, dup.dval; prune=nothing)
+_grad_or_nothing(re::Reactor) = Flux.fmapstructure(_grad_or_nothing, re.gradient; prune=nothing)
 _grad_or_nothing(::Const) = nothing
 _grad_or_nothing(x) = Optimisers.isnumeric(x) ? x : nothing
 
