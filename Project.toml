@@ -26,6 +26,7 @@ Mooncake = "0.4.42"
 NNlib = "0.9"
 Optimisers = "0.3, 0.4"
 ProgressMeter = "1.7.2"
+Reactant = "0.2.10"
 Zygote = "0.6.49"
 julia = "1.10"
 

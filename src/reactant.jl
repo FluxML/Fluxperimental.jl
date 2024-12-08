@@ -1,7 +1,8 @@
 """
     Reactor(model)
 
-Container for use with Reactant.jl. Stores the model alongside a compiled forward pass,
+Container for use with [Reactant.jl](https://github.com/EnzymeAD/Reactant.jl).
+Stores the model alongside a compiled forward pass,
 space for the gradient, and a compiled `Enzyme.autodiff` call.
 These compiled functions are created and stored on first use.
 
@@ -22,7 +23,7 @@ end
 
 Flux.@layer :expand Reactor
 
-function Reactor(args...)
+function Reactor(args...)  # less specific method than in package extension
   if length(args)==1
     error("The method `Reactor(x)` is only available when Reactant.jl is loaded!")
   else
