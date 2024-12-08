@@ -1,162 +1,92 @@
 module FluxReactantExt
 
 using Flux, Fluxperimental, Reactant, Enzyme
-import Fluxperimental: Fluxactor
+import Fluxperimental: Reactor
 
-# mutable struct Fluxactor{M}
+# mutable struct Reactor{M}
 #   model::M
 #   fwd_compiled
 #   fwd_input
+#   fwd_count::Int
 #   gradient::M
 #   grad_compiled
 #   grad_input
+#   grad_count::Int
 # end
 
 """
+    Reactor(model)(x)
+
+Wrapper for use with Reactant.jl, which stores a Flux model,
+and its compiled version which is saved on first call.
+
+Like `Duplicated`, it also allocates space for an Enzyme.jl gradient, and
+calling `Flux.gradient(loss, ::Reactor, ::Const...)` will compile the gradient calculation.
 
 # Example
-```julia
+```julia-repl
 julia> using Flux, Fluxperimental, Reactant, Enzyme
 
 julia> img = rand32(28, 28, 1, 128);
-
-julia> loss(m, x) = sum(abs2, m(x));
 
 julia> mlp = Chain(Flux.flatten, Dense(28^2 => 32, tanh), Dense(32 => 10));
 
 julia> mlp(img)[1:3]  # plain Julia
 3-element Vector{Float32}:
-  0.22694848
- -0.72605485
-  0.57976365
+ -0.40599045
+  0.48307753
+  0.12329187
 
-julia> re_mlp = Fluxactor(mlp);  # uses Reactant
+julia> re_mlp = Reactor(mlp);  # signal to use Reactant
 
 julia> re_mlp(img)[1:3]
-┌ Info: compiling...
+┌ Info: compiling forward pass
 └   summary(xr) = "28×28×1×128 ConcreteRArray{Float32, 4}"
 3-element ConcreteRArray{Float32, 1}:
-  0.22694828
- -0.72605544
-  0.57976323
+ -0.4059906
+  0.4830778
+  0.12329111
+
+julia> re_mlp(img)[1:3];  # does not recompile
 
 julia> re_mlp  # after forward but not yet gradient
-Fluxactor(
+Reactor(
   Chain(
     Flux.flatten,
     Dense(784 => 32, tanh),             # 25_120 parameters
     Dense(32 => 10),                    # 330 parameters
   ),
-  # compiled for 28×28×1×128 ConcreteRArray{Float32, 4}
-  # norm(∇) ≈ 0.0f0
-  # ∇compiled for nothing
+  # compiled for 28×28×1×128 ConcreteRArray{Float32, 4}, run 2 times
+  # norm(∇) ≈ 0.0
+  # gradient not yet compiled
 )         # Total: 4 trainable arrays, 25_450 parameters,
-          # plus 4 non-trainable, 25_450 parameters, summarysize 689 bytes.
-
-julia> Flux.gradient(loss, mlp, img)[1].layers[2].bias[1:3]  # uses Zygote
-3-element Vector{Float32}:
-   90.490005
- -208.77806
-   28.711397
-
-julia> Flux.gradient(loss, Duplicated(mlp), Const(img))[1].layers[2].bias[1:3]  # uses Enzyme
-3-element Vector{Float32}:
-   90.490005
- -208.77806
-   28.711397
-
-julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]  # uses Reactant
-[ Info: compiling gradient(loss, ::Fluxactor)...
-ERROR: "Unhandled type Type"
-Stacktrace:
-  [1] traced_type(::Type{Type}, seen::Tuple{Val{Core.TypeName}, Val{Core.TypeName}}, mode::Val{Reactant.ConcreteToTraced})
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/Tracing.jl:104
-  [2] traced_type(::Type{Core.TypeName}, seen::Tuple{}, mode::Val{Reactant.ConcreteToTraced})
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/Tracing.jl:132
-  [3] make_tracer(seen::Reactant.OrderedIdDict{…}, prev::Core.TypeName, path::Any, mode::Reactant.TraceMode; toscalar::Bool, tobatch::Nothing, kwargs::@Kwargs{})
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/Tracing.jl:242
-  [4] make_tracer(seen::Reactant.OrderedIdDict{…}, prev::Type{…}, path::Any, mode::Reactant.TraceMode; toscalar::Bool, tobatch::Nothing, kwargs::@Kwargs{})
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/Tracing.jl:254
-  [5] make_tracer(seen::Reactant.OrderedIdDict{…}, prev::TypeVar, path::Any, mode::Reactant.TraceMode; toscalar::Bool, tobatch::Nothing, kwargs::@Kwargs{})
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/Tracing.jl:254
-  [6] make_tracer(seen::Reactant.OrderedIdDict{…}, prev::Type{…}, path::Any, mode::Reactant.TraceMode; toscalar::Bool, tobatch::Nothing, kwargs::@Kwargs{…})
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/Tracing.jl:277
-  [7] (::Reactant.var"#21#31"{Bool, Bool, Tuple{…}, Bool, Reactant.OrderedIdDict{…}})(i::Int64)
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/utils.jl:69
-  [8] ntuple
-    @ ./ntuple.jl:19 [inlined]
-  [9] make_mlir_fn(f::Function, args::Tuple{…}, kwargs::Tuple{}, name::String, concretein::Bool; toscalar::Bool, return_dialect::Symbol, no_args_in_result::Bool, construct_function_without_args::Bool, do_transpose::Bool)
-    @ Reactant ~/.julia/packages/Reactant/m1CaM/src/utils.jl:68
- [10] make_mlir_fn
-    @ ~/.julia/packages/Reactant/m1CaM/src/utils.jl:36 [inlined]
- [11] #10
-    @ ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:283 [inlined]
- [12] block!(f::Reactant.Compiler.var"#10#15"{typeof(autodiff), Tuple{…}}, blk::Reactant.MLIR.IR.Block)
-    @ Reactant.MLIR.IR ~/.julia/packages/Reactant/m1CaM/src/mlir/IR/Block.jl:201
- [13] #9
-    @ ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:282 [inlined]
- [14] mmodule!(f::Reactant.Compiler.var"#9#14"{…}, blk::Reactant.MLIR.IR.Module)
-    @ Reactant.MLIR.IR ~/.julia/packages/Reactant/m1CaM/src/mlir/IR/Module.jl:93
- [15] compile_mlir!(mod::Reactant.MLIR.IR.Module, f::Function, args::Tuple{…}; optimize::Bool)
-    @ Reactant.Compiler ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:279
- [16] compile_mlir!
-    @ ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:278 [inlined]
- [17] (::Reactant.Compiler.var"#34#36"{Bool, typeof(autodiff), Tuple{…}})()
-    @ Reactant.Compiler ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:726
- [18] context!(f::Reactant.Compiler.var"#34#36"{Bool, typeof(autodiff), Tuple{…}}, ctx::Reactant.MLIR.IR.Context)
-    @ Reactant.MLIR.IR ~/.julia/packages/Reactant/m1CaM/src/mlir/IR/Context.jl:76
- [19] compile_xla(f::Function, args::Tuple{…}; client::Nothing, optimize::Bool)
-    @ Reactant.Compiler ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:723
- [20] compile_xla
-    @ ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:718 [inlined]
- [21] compile(f::Function, args::Tuple{…}; client::Nothing, optimize::Bool, sync::Bool)
-    @ Reactant.Compiler ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:750
- [22] macro expansion
-    @ ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:485 [inlined]
- [23] gradient(f::Function, m::Fluxactor{Chain{Tuple{…}}}, xs::Const{Array{Float32, 4}})
-    @ Main ./REPL[91]:11
- [24] top-level scope
-    @ REPL[97]:1
-
-later...
-julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]  # uses Reactant
-[ Info: compiling gradient(loss, ::Fluxactor)...
-ERROR: type TypeVar has no field data
-Stacktrace:
- [1] getproperty(x::TypeVar, f::Symbol)
-   @ Base ./Base.jl:37
- [2] macro expansion
-   @ ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:799 [inlined]
- [3] (::Reactant.Compiler.Thunk{…})(::ReverseMode{…}, ::typeof(loss), ::Type{…}, ::Duplicated{…}, ::Const{…})
-   @ Reactant.Compiler ~/.julia/packages/Reactant/m1CaM/src/Compiler.jl:815
- [4] gradient(f::Function, m::Fluxactor{Chain{Tuple{…}}}, xs::Const{Array{Float32, 4}})
-   @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:182
- [5] top-level scope
-   @ REPL[15]:1
-Some type information was truncated. Use `show(err)` to see complete types.
+          # plus 4 non-trainable, 25_450 parameters, summarysize 705 bytes.
 ```
-
 """
-function Fluxactor(model)
+function Reactor(model)
     mr = Reactant.to_rarray(model)
     gr = Reactant.to_rarray(Enzyme.make_zero(model))  # the other way isn't zero!
-    Fluxactor(mr, nothing, nothing, gr, nothing, nothing)
+    Reactor(mr, nothing, nothing, 0, gr, nothing, nothing, 0)
 end
 
 ### forward
 
-function (m::Fluxactor)(x::AbstractArray)
-    Flux.Zygote.isderiving() && error("can't use Fluxactor within Zygote!")
+function (m::Reactor)(x::AbstractArray)
+    Flux.Zygote.isderiving() && error("can't use Reactor within Zygote!")
     xr = Reactant.to_rarray(x)
     input = _input_summary(xr)
     if input == m.fwd_input
-        return m.fwd_compiled(xr)
+        y = m.fwd_compiled(xr)
+        m.fwd_count += 1
+        return y
     else
-        @info "compiling..." summary(xr)
+        @info "compiling forward pass" summary(xr)
         fun = @compile m.model(xr)
         m.fwd_compiled = fun
         m.fwd_input = input
-        return fun(xr)
+        y = fun(xr)
+        m.fwd_count += 1
+        return y
     end
 end
 
@@ -169,11 +99,72 @@ _input_summary(f, xs::Const...) = join((string(f), _input_summary(xs...)...), ",
 ### gradient
 
 """
-    Flux.gradient(loss::Function, model::Fluxactor, args::Const...)
+    Flux.gradient(loss::Function, model::Reactor, args::Const...)
 
 This exact signature uses Reactant to compile the Enzyme gradient call.
+
+# Example
+
+```julia-repl
+julia> using Flux, Fluxperimental, Reactant, Enzyme
+
+julia> img = rand32(28, 28, 1, 128);
+
+julia> mlp = Chain(Flux.flatten, Dense(28^2 => 32, tanh), Dense(32 => 10));
+
+julia> re_mlp = Reactor(mlp);  # signal to use Reactant
+
+julia> loss(m, x) = sum(abs2, m(x));
+
+julia> Flux.gradient(loss, mlp, img)[1].layers[2].bias[1:3]  # uses Zygote
+3-element Vector{Float32}:
+ -34.729736
+  -9.933558
+ -47.216736
+
+julia> Flux.gradient(loss, Duplicated(mlp), Const(img))[1].layers[2].bias[1:3]  # uses Enzyme
+3-element Vector{Float32}:
+ -34.72973
+  -9.933559
+ -47.216732
+
+julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]  # uses Reactant
+[ Info: compiling gradient(loss, ::Reactor, ::Const...)
+ERROR: type TypeVar has no field data
+Stacktrace:
+ [1] getproperty(x::TypeVar, f::Symbol)
+   @ Base ./Base.jl:37
+ [2] macro expansion
+   @ ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:771 [inlined]
+ [3] (::Reactant.Compiler.Thunk{…})(::ReverseMode{…}, ::typeof(loss), ::Type{…}, ::Duplicated{…}, ::Const{…})
+   @ Reactant.Compiler ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:787
+ [4] gradient(f::Function, m::Reactor{Chain{Tuple{typeof(Flux.flatten), Dense{…}, Dense{…}}}}, xs::Const{Array{Float32, 4}})
+   @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:191
+ [5] top-level scope
+   @ REPL[71]:1
+Some type information was truncated. Use `show(err)` to see complete types.
+
+julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]
+3-element ConcreteRArray{Float32, 1}:
+ -34.729725
+  -9.933557
+ -47.216736
+
+julia> re_mlp
+Reactor(
+  Chain(
+    Flux.flatten,
+    Dense(784 => 32, tanh),             # 25_120 parameters
+    Dense(32 => 10),                    # 330 parameters
+  ),
+  # call not yet compiled
+  # norm(∇) ≈ 0.0
+  # ∇compiled for loss, 28×28×1×128 ConcreteRArray{Float32, 4}, and run 1 times
+)         # Total: 4 trainable arrays, 25_450 parameters,
+          # plus 4 non-trainable, 25_450 parameters, summarysize 711 bytes.
+```
 """
-function Flux.gradient(f::Function, m::Fluxactor, xs::Const...)
+function Flux.gradient(f::Function, m::Reactor, xs::Const...)
     xrs = Reactant.to_rarray(xs)
     input = _input_summary(f, xrs...)
     dup = Duplicated(m.model, m.gradient)
@@ -186,13 +177,15 @@ function Flux.gradient(f::Function, m::Fluxactor, xs::Const...)
     elseif input == m.grad_input
         # m.grad_compiled(Reverse, f, Active, dup, xrs...)
         m.grad_compiled(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)
+        m.grad_count += 1
     else
-        @info "compiling gradient($f, ::Fluxactor)..."
+        @info "compiling gradient($f, ::Reactor, ::Const...)"
         # fun = @compile Enzyme.autodiff(Reverse, f, Active, dup, xrs...)  # this gives ERROR: "Unhandled type Type" above
         fun = @compile Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # this gives ERROR: type TypeVar has no field data
         m.grad_compiled = fun
         m.grad_input = _input_summary(f, xrs...)
         fun(Reverse, f, Active, dup, xrs...)
+        m.grad_count += 1
     end
     map(_grad_or_nothing, (dup, xrs...))
 end
@@ -206,9 +199,9 @@ _grad_or_nothing(x) = Optimisers.isnumeric(x) ? x : nothing
 
 ### Optimisers etc.
 
-Flux.setup(rule::Optimisers.AbstractRule, m::Fluxactor) = Flux.setup(rule, m.model)
+Flux.setup(rule::Optimisers.AbstractRule, m::Reactor) = Flux.setup(rule, m.model)
 
-function Flux.update!(opt_state, m::Fluxactor)
+function Flux.update!(opt_state, m::Reactor)
   Flux.update!(opt_state, m.model, _grad_or_nothing(m))
   nothing
 end
@@ -218,12 +211,12 @@ end
 # _applyloss(loss, model, d...) = loss(model, d...)
 #
 # """
-#     train!(loss, Fluxactor(model), data, opt_state)
+#     train!(loss, Reactor(model), data, opt_state)
 
 # This method uses ... instead of Zygote.jl to compute the gradients, but is otherwise the
 # same as `Flux.train!(loss, model, data, opt_state)`.
 # """
-# function Flux.train!(loss, model::Fluxactor, data, opt; cb=nothing, epochs::Int=1)
+# function Flux.train!(loss, model::Reactor, data, opt; cb=nothing, epochs::Int=1)
 #   isnothing(cb) || error("""train! does not support callback functions.
 #                             For more control use a loop with `gradient` and `update!`.""")
 #   Flux.Train.@withprogress for (i,d) in enumerate(Iterators.cycle(data, epochs))
@@ -245,30 +238,46 @@ end
 
 ### Model state & loading
 
-Flux.state(x::Fluxactor) = Flux.state(x.model)
+Flux.state(x::Reactor) = Flux.state(x.model)
 
-function Flux.loadmodel!(dst::Fluxactor, src::Fluxactor; kw...)
+function Flux.loadmodel!(dst::Reactor, src::Reactor; kw...)
    Flux.loadmodel!(dst.model, src.model; kw...)
    dst
 end
-function Flux.loadmodel!(dst::Fluxactor, src; kw...)
+function Flux.loadmodel!(dst::Reactor, src; kw...)
     Flux.loadmodel!(dst.model, src; kw...)
     dst
 end
 
 ### show
 
-function Flux._show_pre_post(m::Fluxactor)
-    # inp = Base.dims2string(m.input.size) * " " * string(m.input.size)
-    inp = m.fwd_input
+function Flux._show_pre_post(m::Reactor)
+    # Forward
+    if m.fwd_input === nothing
+        post = "  # call not yet compiled\n"
+    else
+        # inp = Base.dims2string(m.input.size) * " " * string(m.input.size)
+        inp = m.fwd_input
+        n = m.fwd_count
+        post = "  # compiled for $inp, run $n times\n"
+    end
 
+    # Gradient
     nrm = Flux.norm(Optimisers.destructure(_grad_or_nothing(m))[1])
     str = repr(round(nrm; sigdigits=3))
+    post *= "  # norm(∇) ≈ $str\n"
 
-    rev = m.grad_input
+    if m.grad_input === nothing
+        post *= "  # gradient not yet compiled\n"
+    else
+        rev = m.grad_input
+        n = m.grad_count
+        post *= "  # ∇compiled for $rev, and run $n times\n"
+    end
 
-    # "Fluxactor(", "  # compiled for $inp\n  # norm(∇) ≈ $str\n) "
-    "Fluxactor(", "  # compiled for $inp\n  # norm(∇) ≈ $str\n  # ∇compiled for $rev\n) "
+    pre = "Reactor("
+    post *= ") "
+    return pre, post
 end
 
 end  # module
