@@ -130,18 +130,18 @@ julia> Flux.gradient(loss, Duplicated(mlp), Const(img))[1].layers[2].bias[1:3]  
 
 julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]  # uses Reactant
 [ Info: compiling gradient(loss, ::Reactor, ::Const...)
-ERROR: type TypeVar has no field data
+ERROR: BoundsError: attempt to access ReverseMode{false, false, FFIABI, false, false} at index [1]
 Stacktrace:
- [1] getproperty(x::TypeVar, f::Symbol)
-   @ Base ./Base.jl:37
+ [1] traced_getfield(obj::Any, field::Int64)
+   @ Reactant.Compiler ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:17
  [2] macro expansion
    @ ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:771 [inlined]
  [3] (::Reactant.Compiler.Thunk{…})(::ReverseMode{…}, ::typeof(loss), ::Type{…}, ::Duplicated{…}, ::Const{…})
    @ Reactant.Compiler ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:787
  [4] gradient(f::Function, m::Reactor{Chain{Tuple{typeof(Flux.flatten), Dense{…}, Dense{…}}}}, xs::Const{Array{Float32, 4}})
-   @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:191
+   @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:190
  [5] top-level scope
-   @ REPL[71]:1
+   @ REPL[81]:1
 Some type information was truncated. Use `show(err)` to see complete types.
 
 julia> Flux.gradient(loss, re_mlp, Const(img))[1].layers[2].bias[1:3]
@@ -168,20 +168,23 @@ function Flux.gradient(f::Function, m::Reactor, xs::Const...)
     xrs = Reactant.to_rarray(xs)
     input = _input_summary(f, xrs...)
     dup = Duplicated(m.model, m.gradient)
-    _seed = Ref(0f0), Ref(1f0)  # MethodError: no method matching Float32(::Reactant.TracedRNumber{Float32})
+    # _seed = Ref(0f0), Ref(1f0)  # MethodError: no method matching Float32(::Reactant.TracedRNumber{Float32})
     _seed = ([0f0], [1f0]) |> Reactant.to_rarray
     seed = Duplicated(_seed...)
+    _autodiff(seed, dup, xrs...) = Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # suggestion from @jumerckx to pass simpler arguments to the function seen by  @compile
     if false
         # Enzyme.autodiff(Reverse, f, Active, dup, xrs...)  # just for testing, gives zero
         Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # just for testing, gives zero
     elseif input == m.grad_input
         # m.grad_compiled(Reverse, f, Active, dup, xrs...)
-        m.grad_compiled(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)
+        # m.grad_compiled(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)
+        m.grad_compiled(seed, dup, xrs...)
         m.grad_count += 1
     else
         @info "compiling gradient($f, ::Reactor, ::Const...)"
         # fun = @compile Enzyme.autodiff(Reverse, f, Active, dup, xrs...)  # this gives ERROR: "Unhandled type Type" above
-        fun = @compile Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # this gives ERROR: type TypeVar has no field data
+        # fun = @compile Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # this gives ERROR: type TypeVar has no field data
+        fun = @compile _autodiff(seed, dup, xrs...)  # ERROR: BoundsError: attempt to access ReverseMode{false, false, FFIABI, false, false} at index [1]
         m.grad_compiled = fun
         m.grad_input = _input_summary(f, xrs...)
         fun(Reverse, f, Active, dup, xrs...)
