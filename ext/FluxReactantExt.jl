@@ -8,10 +8,10 @@ import Fluxperimental: Reactor
 #   fwd_compiled
 #   fwd_input
 #   fwd_count::Int
-#   gradient::M
 #   grad_compiled
 #   grad_input
 #   grad_count::Int
+#   gradient::M
 # end
 
 """
@@ -65,8 +65,7 @@ Reactor(
 """
 function Reactor(model)
     mr = Reactant.to_rarray(model)
-    gr = Reactant.to_rarray(Enzyme.make_zero(model))  # the other way isn't zero!
-    Reactor(mr, nothing, nothing, 0, gr, nothing, nothing, 0)
+    Reactor{typeof(mr)}(mr)
 end
 
 ### forward
@@ -178,13 +177,20 @@ Duplicated(
 ```
 """
 function Flux.gradient(f::Function, m::Reactor, xs::Const...)
+    if !isdefined(m, :gradient)
+        @info "allocating shadow"
+        m.gradient = Enzyme.make_zero(m.model)  # I think this may not be zero!
+    end
     xrs = Reactant.to_rarray(xs)
     input = _input_summary(f, xrs...)
     dup = Duplicated(m.model, m.gradient)
     # _seed = Ref(0f0), Ref(1f0)  # MethodError: no method matching Float32(::Reactant.TracedRNumber{Float32})
     _seed = ([0f0], [1f0]) |> Reactant.to_rarray
     seed = Duplicated(_seed...)
-    _autodiff(seed, dup, xrs...) = Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # suggestion from @jumerckx to pass simpler arguments to the function seen by  @compile
+    function _autodiff(seed, dup, xrs...)
+        Enzyme.make_zero!(Ref(dup.dval))
+        Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # suggestion from @jumerckx to pass simpler arguments to the function seen by  @compile
+    end
     if false
         # Enzyme.autodiff(Reverse, f, Active, dup, xrs...)  # just for testing, gives zero
         Enzyme.autodiff(Reverse, Const(_fun!), seed, Const(f), dup, xrs...)  # just for testing, gives zero
@@ -215,6 +221,9 @@ _grad_or_nothing(::Const) = nothing
 _grad_or_nothing(x) = Optimisers.isnumeric(x) ? x : nothing
 
 ### Optimisers etc.
+
+Optimisers.trainable(m::Reactor) = (; m.model)
+Flux.Functors.@functor Reactor (model,)
 
 Flux.setup(rule::Optimisers.AbstractRule, m::Reactor) = Flux.setup(rule, m.model)
 
@@ -280,9 +289,13 @@ function Flux._show_pre_post(m::Reactor)
     end
 
     # Gradient
-    nrm = Flux.norm(Optimisers.destructure(_grad_or_nothing(m))[1])
-    str = repr(round(nrm; sigdigits=3))
-    post *= "  # norm(∇) ≈ $str\n"
+    if isdefined(m, :gradient)
+        nrm = Flux.norm(Optimisers.destructure(_grad_or_nothing(m))[1])
+        str = repr(round(nrm; sigdigits=3))
+        post *= "  # norm(∇) ≈ $str\n"
+    else
+        post *= "  # no shadow\n"
+    end
 
     if m.grad_input === nothing
         post *= "  # gradient not yet compiled\n"
