@@ -226,6 +226,7 @@ Optimisers.trainable(m::Reactor) = (; m.model)
 Flux.Functors.@functor Reactor (model,)
 
 Flux.setup(rule::Optimisers.AbstractRule, m::Reactor) = Flux.setup(rule, m.model)
+Optimisers.maywrite(::ConcreteRArray{<:AbstractFloat}) = true
 
 function Flux.update!(opt_state, m::Reactor)
   Flux.update!(opt_state, m.model, _grad_or_nothing(m))
@@ -234,33 +235,120 @@ end
 
 ### Flux.Train, for train!
 
-# _applyloss(loss, model, d...) = loss(model, d...)
-#
-# """
-#     train!(loss, Reactor(model), data, opt_state)
+"""
+    train!(loss, Reactor(model), data, opt_state; epochs=1)
 
-# This method uses ... instead of Zygote.jl to compute the gradients, but is otherwise the
-# same as `Flux.train!(loss, model, data, opt_state)`.
-# """
-# function Flux.train!(loss, model::Reactor, data, opt; cb=nothing, epochs::Int=1)
-#   isnothing(cb) || error("""train! does not support callback functions.
-#                             For more control use a loop with `gradient` and `update!`.""")
-#   Flux.Train.@withprogress for (i,d) in enumerate(Iterators.cycle(data, epochs))
-#     d_splat = d isa Tuple ? d : (d,)
-#     rule = Mooncake.build_rrule(f, model.val, d_splat...)  # perhaps not ideal to do this inside the loop?
+This method uses Reactant.jl to compile the whole gradient-and-update step.
+Should give the same results as `Flux.train!(loss, model, data, opt_state)` (Zygote)
+or `Flux.train!(loss, Duplicated(model), data, opt_state)` (Enzyme).
 
-#     Mooncake.set_to_zero!!(model.dval)
-#     l, _ = Mooncake.__value_and_gradient!!(rule, Mooncake.zero_codual(f), model, map(Mooncake.zero_codual, d_splat)...)
+# Example
 
-#     if !isfinite(l)
-#       throw(DomainError(lazy"Loss is $l on data item $i, stopping training"))
-#     end
+```julia
+using Flux, Fluxperimental, Reactant, Enzyme
 
-#     Flux.update!(opt, model)
+X = repeat(hcat(digits.(0:3, base=2, pad=2)...), 1, 32)
+Y = Flux.onehotbatch(xor.(eachrow(X)...), 0:1)
+data = Flux.DataLoader((X .+ 0f0, Y .+ 0f0); batchsize=16, shuffle=true)  # X .+ 0f0 etc makes Matrix{Float64}, avoiding some errors
 
-#     Flux.Train.@logprogress Base.haslength(data) ? i/(length(data)*epochs) : nothing
-#   end
-# end
+model = Chain(Dense(2 => 3, sigmoid), BatchNorm(3), Dense(3 => 2)) |> Reactor
+state = Flux.setup(Adam(0.1, (0.7, 0.95)), model)  # Note that I'm doing this after |> Reactor, ideally before would work too?
+
+Flux.train!(model, data, state; epochs=100) do m, x, y
+  Flux.logitcrossentropy(m(x), y)
+end
+
+all((softmax(model(X)) .> 0.5) .== Y)
+```
+
+Error:
+```
+julia> Flux.train!(model, data, state; epochs=100) do m, x, y
+         Flux.logitcrossentropy(m(x), y)
+       end
+[ Info: allocating shadow
+[ Info: compiling
+ERROR: type Array has no field data
+Stacktrace:
+ [1] getproperty
+   @ ./Base.jl:37 [inlined]
+ [2] macro expansion
+   @ ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:771 [inlined]
+ [3] (::Reactant.Compiler.Thunk{…})(::var"#28#29", ::Duplicated{…}, ::Duplicated{…}, ::Tuple{…}, ::@NamedTuple{…})
+   @ Reactant.Compiler ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:787
+ [4] macro expansion
+   @ ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:279 [inlined]
+ [5] macro expansion
+   @ ~/.julia/packages/ProgressLogging/6KXlp/src/ProgressLogging.jl:328 [inlined]
+ [6] train!(loss::Function, m::Reactor{…}, data::MLUtils.DataLoader{…}, opt_state::@NamedTuple{…}; epochs::Int64)
+   @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:271
+ [7] top-level scope
+   @ REPL[132]:1
+Some type information was truncated. Use `show(err)` to see complete types.
+
+julia> err
+1-element ExceptionStack:
+type Array has no field data
+Stacktrace:
+ [1] getproperty
+   @ ./Base.jl:37 [inlined]
+ [2] macro expansion
+   @ ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:771 [inlined]
+ [3] (::Reactant.Compiler.Thunk{Symbol("##_step!_reactant#892319")})(::var"#28#29", ::Duplicated{ConcreteRArray{Float32, 1}}, ::Duplicated{Chain{Tuple{Dense{typeof(σ), ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 1}}, BatchNorm{typeof(identity), ConcreteRArray{Float32, 1}, Float32, ConcreteRArray{Float32, 1}}, Dense{typeof(identity), ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 1}}}}}, ::Tuple{Matrix{Float32}, Matrix{Float32}}, ::@NamedTuple{layers::Tuple{@NamedTuple{weight::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 2}, Tuple{Float32, Float32}}}, bias::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, σ::Tuple{}}, @NamedTuple{λ::Tuple{}, β::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, γ::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, μ::Tuple{}, σ²::Tuple{}, ϵ::Tuple{}, momentum::Tuple{}, affine::Tuple{}, track_stats::Tuple{}, active::Tuple{}, chs::Tuple{}}, @NamedTuple{weight::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 2}, Tuple{Float32, Float32}}}, bias::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, σ::Tuple{}}}})
+   @ Reactant.Compiler ~/.julia/packages/Reactant/sIJRJ/src/Compiler.jl:787
+ [4] macro expansion
+   @ ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:279 [inlined]
+ [5] macro expansion
+   @ ~/.julia/packages/ProgressLogging/6KXlp/src/ProgressLogging.jl:328 [inlined]
+ [6] train!(loss::Function, m::Reactor{Chain{Tuple{Dense{typeof(σ), ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 1}}, BatchNorm{typeof(identity), ConcreteRArray{Float32, 1}, Float32, ConcreteRArray{Float32, 1}}, Dense{typeof(identity), ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 1}}}}}, data::MLUtils.DataLoader{Tuple{Matrix{Float32}, Matrix{Float32}}, Random._GLOBAL_RNG, Val{nothing}}, opt_state::@NamedTuple{layers::Tuple{@NamedTuple{weight::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 2}, Tuple{Float32, Float32}}}, bias::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, σ::Tuple{}}, @NamedTuple{λ::Tuple{}, β::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, γ::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, μ::Tuple{}, σ²::Tuple{}, ϵ::Tuple{}, momentum::Tuple{}, affine::Tuple{}, track_stats::Tuple{}, active::Tuple{}, chs::Tuple{}}, @NamedTuple{weight::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 2}, ConcreteRArray{Float32, 2}, Tuple{Float32, Float32}}}, bias::Optimisers.Leaf{Adam, Tuple{ConcreteRArray{Float32, 1}, ConcreteRArray{Float32, 1}, Tuple{Float32, Float32}}}, σ::Tuple{}}}}; epochs::Int64)
+   @ FluxReactantExt ~/.julia/dev/Fluxperimental/ext/FluxReactantExt.jl:271
+ [7] top-level scope
+   @ REPL[132]:1
+
+```
+"""
+function Flux.train!(loss, m::Reactor, data, opt_state; epochs::Int=1)
+    # opt_state = Reactant.to_rarray(opt)  # doesn't work if it's already there
+
+    if !isdefined(m, :gradient)
+        @info "allocating shadow"
+        m.gradient = Enzyme.make_zero(m.model)  # I think this may not be zero!
+    end
+    dup = Duplicated(m.model, m.gradient)
+
+    _seed = ([0f0], [1f0]) |> Reactant.to_rarray
+    seed = Duplicated(_seed...)
+
+    compiled = nothing
+
+    Flux.Train.@withprogress for (i,d) in enumerate(Iterators.cycle(data, epochs))
+        d_splat = d isa Tuple ? d : (d,)
+        dr_splat = Reactant.to_rarray(d_splat)
+        if i == 1
+            @info "compiling"
+            compiled = @compile _step!(loss, seed, dup, dr_splat, opt_state)
+        end
+
+        compiled(loss, seed, dup, d_splat, opt_state)
+
+        # TODO: store the compiled thing in the struct
+        # TODO: catch NaN/Inf loss like normal, by ReverseWithPrimal?
+
+        # if !isfinite(l)
+        # throw(DomainError(lazy"Loss is $l on data item $i, stopping training"))
+        # end
+
+        Flux.Train.@logprogress Base.haslength(data) ? i/(length(data)*epochs) : nothing
+    end
+end
+
+@inline _applyloss!(out, loss, model, xy...) = begin out[] = loss(model, xy...); nothing end
+
+function _step!(loss, seed, dup, d_splat, opt_state)
+    Enzyme.make_zero!(Ref(dup.dval))
+    Enzyme.autodiff(Reverse, Const(_applyloss!), seed, Const(loss), dup, map(Const, d_splat)...)
+    Optimisers.update!(opt_state, dup.val, _grad_or_nothing(dup))
+end
 
 ### Model state & loading
 
