@@ -15,10 +15,11 @@ mutable struct Reactor{M}
   fwd_compiled
   fwd_input
   fwd_count::Int
-  gradient::M
   grad_compiled
   grad_input
   grad_count::Int
+  gradient::M  # this is left #undef by the only constructor:
+  Reactor{M}(model::M) where M = new{M}(model, nothing, nothing, 0, nothing, nothing, 0)
 end
 
 Flux.@layer :expand Reactor
