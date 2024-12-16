@@ -18,7 +18,7 @@ FluxMooncakeExt = "Mooncake"
 
 [compat]
 Compat = "4"
-Flux = "0.14.23, 0.15"
+Flux = "0.14.23, 0.15, 0.16"
 Mooncake = "0.4.42"
 NNlib = "0.9"
 Optimisers = "0.3, 0.4"
