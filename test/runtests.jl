@@ -11,7 +11,8 @@ using Flux, Fluxperimental
 
   include("autostruct.jl")
 
-  include("new_recur.jl")
+  # include("new_recur.jl")  # Broken on Flux 0.16
 
   include("mooncake.jl")
+  include("reactant.jl")
 end
