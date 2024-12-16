@@ -310,11 +310,11 @@ Stacktrace:
 function Flux.train!(loss, m::Reactor, data, opt_state; epochs::Int=1)
     # opt_state = Reactant.to_rarray(opt)  # doesn't work if it's already there
 
-    if !isdefined(m, :gradient)
-        @info "allocating shadow"
-        m.gradient = Enzyme.make_zero(m.model)  # I think this may not be zero!
+    maybedup = if isdefined(m, :gradient)
+        Duplicated(m.model, m.gradient)
+    else
+        m.model  # then allocate inside step!
     end
-    dup = Duplicated(m.model, m.gradient)
 
     _seed = ([0f0], [1f0]) |> Reactant.to_rarray
     seed = Duplicated(_seed...)
@@ -326,10 +326,10 @@ function Flux.train!(loss, m::Reactor, data, opt_state; epochs::Int=1)
         dr_splat = Reactant.to_rarray(d_splat)
         if i == 1
             @info "compiling"
-            compiled = @compile _step!(loss, seed, dup, dr_splat, opt_state)
+            compiled = @compile _step!(loss, seed, maybedup, dr_splat, opt_state)
         end
 
-        compiled(loss, seed, dup, d_splat, opt_state)
+        compiled(loss, seed, maybedup, d_splat, opt_state)
 
         # TODO: store the compiled thing in the struct
         # TODO: catch NaN/Inf loss like normal, by ReverseWithPrimal?
@@ -344,8 +344,13 @@ end
 
 @inline _applyloss!(out, loss, model, xy...) = begin out[] = loss(model, xy...); nothing end
 
-function _step!(loss, seed, dup, d_splat, opt_state)
+function _step!(loss, seed, dup::Duplicated, d_splat, opt_state)
     Enzyme.make_zero!(Ref(dup.dval))
+    Enzyme.autodiff(Reverse, Const(_applyloss!), seed, Const(loss), dup, map(Const, d_splat)...)
+    Optimisers.update!(opt_state, dup.val, _grad_or_nothing(dup))
+end
+function _step!(loss, seed, model, d_splat, opt_state)
+    dup = Duplicated(model, Enzyme.make_zero(model))
     Enzyme.autodiff(Reverse, Const(_applyloss!), seed, Const(loss), dup, map(Const, d_splat)...)
     Optimisers.update!(opt_state, dup.val, _grad_or_nothing(dup))
 end
