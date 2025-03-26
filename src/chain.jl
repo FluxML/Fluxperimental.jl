@@ -10,6 +10,11 @@ function apply(chain::Flux.Chain, x)
   Flux.Chain(layers), out
 end
 
+function apply(chain::Flux.Chain, x::Union{AbstractVector{<:AbstractArray}, Base.Generator})
+  layers, out = _apply(chain.layers, x)
+  Flux.Chain(layers), out
+end
+
 function _apply(layers::NamedTuple{NMS, TPS}, x) where {NMS, TPS}
   layers, out = _apply(Tuple(layers), x)
   NamedTuple{NMS}(layers), out
@@ -18,7 +23,7 @@ end
 function _scan(layers::AbstractVector, x)
   new_layers = typeof(layers)(undef, length(layers))
   for (idx, f) in enumerate(layers)
-    new_layers[idx], x = _apply(f, x)
+    new_layers[idx], x = apply(f, x)
   end
   new_layers, x
 end
@@ -27,7 +32,7 @@ end
 # example pulled from https://github.com/mcabbott/Flux.jl/blob/chain_rrule/src/cuda/cuda.jl
 function ChainRulesCore.rrule(cfg::ChainRulesCore.RuleConfig, ::typeof(_scan), layers, x)
   duo = accumulate(layers; init=((nothing, x), nothing)) do ((pl,  input), _), cur_layer
-    out, back = ChainRulesCore.rrule_via_ad(cfg, _apply, cur_layer, input)
+    out, back = ChainRulesCore.rrule_via_ad(cfg, apply, cur_layer, input)
   end
   outs = map(first, duo)
   backs = map(last, duo)
@@ -52,11 +57,11 @@ end
 @generated function _apply(layers::Tuple{Vararg{<:Any,N}}, x) where {N}
   x_symbols = vcat(:x, [gensym() for _ in 1:N])
   l_symbols = [gensym() for _ in 1:N]
-  calls = [:(($(l_symbols[i]), $(x_symbols[i+1])) = _apply(layers[$i], $(x_symbols[i]))) for i in 1:N]
+  calls = [:(($(l_symbols[i]), $(x_symbols[i+1])) = apply(layers[$i], $(x_symbols[i]))) for i in 1:N]
   push!(calls, :(return tuple($(l_symbols...)), $(x_symbols[end])))
   Expr(:block, calls...)
 end
 
-_apply(layer, x) = layer, layer(x)
+apply(layer, x) = layer, layer(x)
 
 
